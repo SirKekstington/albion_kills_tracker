@@ -1,4 +1,5 @@
 import type { DashboardStats } from './types'
+import { translate, type Language } from './translations'
 
 export const DEFAULT_OVERLAY_HTML = `<div class="overlay">
   <div>Profit: <span class="profit">{{profit}}</span></div>
@@ -9,6 +10,7 @@ export const DEFAULT_OVERLAY_CSS = `.overlay { display: inline-flex; flex-direct
 .loss { color: #ff7d88; }`
 
 export interface OverlayAppearance {
+  language?: Language
   overlayTransparent: boolean
   overlayCustomEnabled: boolean
   overlayHtml: string
@@ -22,20 +24,23 @@ export const DEFAULT_OVERLAY_APPEARANCE: OverlayAppearance = {
   overlayCss: DEFAULT_OVERLAY_CSS
 }
 
-export function overlayValues(stats: DashboardStats): Record<string, string> {
+export function overlayValues(stats: DashboardStats, language: Language = 'en'): Record<string, string> {
   const format = (value: number, signed = false): string => {
     const absolute = Math.abs(value)
     const sign = value < 0 ? '−' : signed ? '+' : ''
-    return sign + (absolute >= 1e9 ? (absolute / 1e9).toFixed(2) + 'b'
+    const formatted = (absolute >= 1e9 ? (absolute / 1e9).toFixed(2) + 'b'
       : absolute >= 1e6 ? (absolute / 1e6).toFixed(1) + 'm'
         : absolute >= 1e3 ? Math.round(absolute / 1e3) + 'k' : String(absolute))
+    return sign + (language === 'de' ? formatted.replace('.', ',') : formatted)
   }
   return { profit: format(stats.profit, true), loss: format(stats.lossValue), profit_raw: String(stats.profit), loss_raw: String(stats.lossValue) }
 }
 
 // Shared by the OBS page and the sandboxed, script-free editor preview.
 export function renderOverlay(appearance: OverlayAppearance, values: Record<string, string>, script = ''): string {
-  const html = appearance.overlayCustomEnabled ? appearance.overlayHtml : DEFAULT_OVERLAY_HTML
+  const language = appearance.language ?? 'en'
+  const html = appearance.overlayCustomEnabled ? appearance.overlayHtml
+    : DEFAULT_OVERLAY_HTML.replace('Profit:', `${translate(language, 'Profit')}:`).replace('Loss:', `${translate(language, 'Loss')}:`)
   const css = appearance.overlayCustomEnabled ? appearance.overlayCss : `${DEFAULT_OVERLAY_CSS}
 .overlay { padding:12px 16px; border-radius:12px; background:rgba(10,13,20,.82); border:1px solid rgba(255,255,255,.10); text-shadow:0 2px 10px #000; backdrop-filter:blur(8px); }`
   const content = html.replace(/\{\{(profit|loss|profit_raw|loss_raw)\}\}/g, (_, key: string) =>
@@ -46,5 +51,5 @@ ${appearance.overlayTransparent ? 'html,body,body *{background:transparent!impor
     const withStyles = /<\/head>/i.test(content) ? content.replace(/<\/head>/i, () => `${styles}</head>`) : content.replace(/<html[^>]*>/i, (tag) => `${tag}<head>${styles}</head>`)
     return /<\/body>/i.test(withStyles) ? withStyles.replace(/<\/body>/i, () => `${script}</body>`) : withStyles + script
   }
-  return `<!doctype html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width">${styles}</head><body>${content}${script}</body></html>`
+  return `<!doctype html><html lang="${language}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width">${styles}</head><body>${content}${script}</body></html>`
 }

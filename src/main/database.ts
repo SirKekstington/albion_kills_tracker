@@ -4,6 +4,7 @@ import type {
   AppSettings,
   EventType,
   PlayerProfile,
+  ProfitTracking,
   StoredEvent,
   TimeRange,
   ValuationMode
@@ -88,6 +89,12 @@ export class AppDatabase {
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
       );
+
+      CREATE TABLE IF NOT EXISTS profit_tracking (
+        profile_id TEXT PRIMARY KEY REFERENCES profiles(id) ON DELETE CASCADE,
+        mode TEXT NOT NULL,
+        started_at INTEGER
+      );
     `)
   }
 
@@ -156,8 +163,20 @@ export class AppDatabase {
     )
   }
 
-  listEvents(profileId: string, range: TimeRange, limit?: number): StoredEvent[] {
-    const start = getRangeStart(range)
+  getProfitTracking(profileId: string): ProfitTracking {
+    const row = this.db.prepare('SELECT mode, started_at AS startedAt FROM profit_tracking WHERE profile_id = ?')
+      .get(profileId) as ProfitTracking | undefined
+    return row ?? { mode: 'TODAY', startedAt: null }
+  }
+
+  setProfitTracking(profileId: string, mode: ProfitTracking['mode']): void {
+    this.db.prepare(`INSERT INTO profit_tracking (profile_id, mode, started_at) VALUES (?, ?, ?)
+      ON CONFLICT(profile_id) DO UPDATE SET mode = excluded.mode, started_at = excluded.started_at`)
+      .run(profileId, mode, mode === 'SESSION' ? Date.now() : null)
+  }
+
+  listEvents(profileId: string, range: TimeRange, limit?: number, since?: number): StoredEvent[] {
+    const start = since ?? getRangeStart(range)
     const conditions = ['e.profile_id = @profileId']
     if (start !== null) conditions.push('event_timestamp >= @start')
     const limitClause = limit ? 'LIMIT @limit' : ''
@@ -198,6 +217,7 @@ export class AppDatabase {
     const rows = this.db.prepare('SELECT key, value FROM settings').all() as Array<{ key: string; value: string }>
     const values = Object.fromEntries(rows.map((row) => [row.key, JSON.parse(row.value)]))
     return {
+      language: values.language === 'de' ? 'de' : 'en',
       overlayTransparent: typeof values.overlayTransparent === 'boolean' ? values.overlayTransparent : DEFAULT_OVERLAY_APPEARANCE.overlayTransparent,
       overlayCustomEnabled: typeof values.overlayCustomEnabled === 'boolean' ? values.overlayCustomEnabled : DEFAULT_OVERLAY_APPEARANCE.overlayCustomEnabled,
       overlayHtml: typeof values.overlayHtml === 'string' ? values.overlayHtml : DEFAULT_OVERLAY_APPEARANCE.overlayHtml,
@@ -218,6 +238,11 @@ export class AppDatabase {
       for (const [key, value] of Object.entries(settings)) statement.run(key, JSON.stringify(value))
     })
     transaction()
+  }
+
+  setLanguage(language: 'en' | 'de'): void {
+    this.db.prepare(`INSERT INTO settings (key, value) VALUES ('language', ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(JSON.stringify(language))
   }
 
   close(): void {

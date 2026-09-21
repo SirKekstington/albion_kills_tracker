@@ -46,6 +46,20 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .repository-footer a { display: inline-flex; align-items: center; gap: 7px; color: inherit; text-decoration: none; }
 .repository-footer a:hover { color: #c5b5ff; }
 .repository-footer a:focus-visible { outline: 2px solid var(--purple); outline-offset: 5px; border-radius: 3px; }
+.profit-tracking { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 16px 18px; margin-bottom: 18px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; }
+.profit-tracking b { font-size: 13px; }
+.profit-tracking p { margin: 5px 0 0; color: var(--muted); font-size: 11px; }
+.tracking-actions { display: flex; gap: 8px; }
+.tracking-actions .selected { color: #c6b7ff; border-color: #7655df; }
+.tracking-actions button:disabled { cursor: default; }
+.language-control label { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
+.language-control select { padding: 7px 9px; color: #e1e6ef; background: var(--panel); border: 1px solid var(--border); border-radius: 7px; }
+.language-control [role="alert"] { display: block; max-width: 200px; color: var(--red); font-size: 11px; margin-top: 5px; }
+.onboarding-panel > .language-control { display: flex; justify-content: flex-end; margin-bottom: 20px; }
+.header-actions { flex-wrap: wrap; }
+.fight-row time { overflow-wrap: anywhere; }
+.stat-value { font-size: clamp(18px, 1.8vw, 24px); }
+@media (max-width: 760px) { .profit-tracking { flex-direction: column; align-items: flex-start; } }
 .topbar { height: 92px; padding: 0 38px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
 .topbar h1 { margin: 3px 0 0; font: 800 23px/1 Manrope,sans-serif; }
 .eyebrow { margin: 0; color: #717b8f; font-size: 10px; font-weight: 800; letter-spacing: .16em; }

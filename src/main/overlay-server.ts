@@ -45,9 +45,9 @@ export class OverlayServer {
         'Access-Control-Allow-Origin': '*',
         'Cache-Control': 'no-store'
       })
-      const stats = this.statistics.getTodayStats()
+      const stats = pathname === '/api/today' ? this.statistics.getTodayStats() : this.statistics.getTrackingStats()
       response.end(JSON.stringify(pathname === '/api/today' ? stats : {
-        values: overlayValues(stats), revision: appearanceRevision(this.getAppearance())
+        values: overlayValues(stats, this.getAppearance().language), revision: appearanceRevision(this.getAppearance())
       }))
       return
     }
@@ -75,7 +75,7 @@ async function update(){
 }
 update();
 </script>`
-      response.end(renderOverlay(appearance, overlayValues(this.statistics.getTodayStats()), script))
+      response.end(renderOverlay(appearance, overlayValues(this.statistics.getTrackingStats(), appearance.language), script))
       return
     }
     response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' })
@@ -85,6 +85,6 @@ update();
 
 function appearanceRevision(appearance: OverlayAppearance): string {
   return createHash('sha256').update(JSON.stringify([
-    appearance.overlayTransparent, appearance.overlayCustomEnabled, appearance.overlayHtml, appearance.overlayCss
+    appearance.overlayTransparent, appearance.overlayCustomEnabled, appearance.overlayHtml, appearance.overlayCss, appearance.language ?? 'en'
   ])).digest('hex')
 }

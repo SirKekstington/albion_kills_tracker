@@ -2,10 +2,12 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { AppApi } from '../shared/types'
 
 const api: AppApi & { onUpdated(callback: () => void): () => void } = {
+  setLanguage: (language) => ipcRenderer.invoke('language:set', language),
   searchPlayers: (server, query) => ipcRenderer.invoke('players:search', server, query),
   saveProfile: (profile) => ipcRenderer.invoke('profile:save', profile),
   getProfile: () => ipcRenderer.invoke('profile:get'),
   getDashboard: (range) => ipcRenderer.invoke('dashboard:get', range),
+  setProfitTracking: (mode) => ipcRenderer.invoke('tracking:set', mode),
   getFightDetails: (eventId) => ipcRenderer.invoke('fights:details', eventId),
   setFightValuation: (eventId, mode) => ipcRenderer.invoke('fights:valuation', eventId, mode),
   getItemImage: (itemId, quality) => ipcRenderer.invoke('items:image', itemId, quality),

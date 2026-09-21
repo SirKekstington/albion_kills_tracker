@@ -1,3 +1,4 @@
+import { t } from './i18n'
 import { useEffect, useState } from 'react'
 import { Swords } from 'lucide-react'
 import type { AlbionItem } from '../../shared/types'
@@ -14,7 +15,7 @@ export function FightWeapon({ item, label }: { item: AlbionItem | null; label: s
     }).catch(() => { /* The full fight still opens when an icon is unavailable. */ })
     return () => { active = false }
   }, [itemId, quality])
-  const description = `${label}: ${itemId ? `${itemId} · Quality ${quality}` : 'not recorded'}`
+  const description = `${label}: ${itemId ? `${itemId} · ${t('Quality')} ${quality}` : t("not recorded")}`
   return <span className="fight-weapon" title={description} role="img" aria-label={description}>
     {source ? <img src={source} alt="" onError={() => setSource('')} /> : <Swords size={17} aria-hidden="true" />}
   </span>

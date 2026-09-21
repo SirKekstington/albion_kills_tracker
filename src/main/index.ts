@@ -80,6 +80,17 @@ async function applyOverlaySettings(settings: AppSettings): Promise<void> {
 }
 
 function registerIpc(): void {
+  ipcMain.handle('language:set', (_event, language: unknown) => {
+    db.setLanguage(z.enum(['en', 'de']).parse(language))
+    notifyRenderer()
+  })
+  ipcMain.handle('tracking:set', (_event, mode: unknown) => {
+    const validMode = z.enum(['TODAY', 'SESSION']).parse(mode)
+    const profile = db.getActiveProfile()
+    if (!profile) throw new Error('No active character')
+    db.setProfitTracking(profile.id, validMode)
+    notifyRenderer()
+  })
   ipcMain.handle('fights:valuation', async (_event, eventId: unknown, mode: unknown) => {
     const result = await statistics.setFightValuation(
       z.string().min(1).max(128).parse(eventId), z.enum(['FULL', 'INVENTORY', 'NONE']).parse(mode), prices
@@ -110,7 +121,7 @@ function registerIpc(): void {
   )
   ipcMain.handle('settings:get', () => db.getSettings())
   ipcMain.handle('settings:save', async (_event, input: unknown) => {
-    const settings = settingsSchema.parse(input)
+    const settings = { ...settingsSchema.parse(input), language: db.getSettings().language }
     db.saveSettings(settings)
     app.setLoginItemSettings({ openAtLogin: settings.launchAtStartup })
     await applyOverlaySettings(settings)

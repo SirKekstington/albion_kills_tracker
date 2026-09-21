@@ -39,7 +39,8 @@ describe('live OBS overlay', () => {
     let appearance = { ...DEFAULT_OVERLAY_APPEARANCE, overlayCustomEnabled: true,
       overlayHtml: '<strong>{{profit}}</strong><p>{{loss}}</p>' }
     let stats = { ...EMPTY_STATS, profit: 1000, lossValue: 200 }
-    const server = new OverlayServer({ getTodayStats: () => stats } as StatisticsService, () => appearance)
+    const todayStats = { ...EMPTY_STATS, profit: 12345, lossValue: 600 }
+    const server = new OverlayServer({ getTodayStats: () => todayStats, getTrackingStats: () => stats } as StatisticsService, () => appearance)
     try {
       await server.start(0)
       const url = server.getUrl()
@@ -68,7 +69,7 @@ describe('live OBS overlay', () => {
       const updated = await (await fetch(endpoint)).json()
       expect(updated.revision).not.toBe(original.revision)
       expect(await (await fetch(url)).text()).toContain('background:transparent!important')
-      expect((await (await fetch(new URL('/api/today', url))).json()).profit).toBe(-2000)
+      expect((await (await fetch(new URL('/api/today', url))).json()).profit).toBe(12345)
     } finally { await server.stop() }
   })
 })

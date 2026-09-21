@@ -2,6 +2,10 @@ export type AlbionServer = 'EUROPE' | 'AMERICAS' | 'ASIA'
 export type EventType = 'KILL' | 'ASSIST' | 'DEATH'
 export type TimeRange = 'TODAY' | '7D' | '30D' | 'ALL'
 export type ValuationMode = 'FULL' | 'INVENTORY' | 'NONE'
+export interface ProfitTracking {
+  mode: 'TODAY' | 'SESSION'
+  startedAt: number | null
+}
 
 export interface ServerDefinition {
   key: AlbionServer
@@ -85,6 +89,9 @@ export interface FightSummary {
 }
 
 export interface DashboardData {
+  tracking: ProfitTracking
+  trackingStats: DashboardStats
+  trackingFights: FightSummary[]
   profile: PlayerProfile | null
   range: TimeRange
   stats: DashboardStats
@@ -111,6 +118,7 @@ export interface CollectorStatus {
 }
 
 export interface AppSettings {
+  language: 'en' | 'de'
   overlayTransparent: boolean
   overlayCustomEnabled: boolean
   overlayHtml: string
@@ -129,10 +137,12 @@ export interface SaveProfileInput {
 }
 
 export interface AppApi {
+  setLanguage(language: 'en' | 'de'): Promise<void>
   searchPlayers(server: AlbionServer, query: string): Promise<PlayerSearchResult[]>
   saveProfile(input: SaveProfileInput): Promise<void>
   getProfile(): Promise<PlayerProfile | null>
   getDashboard(range: TimeRange): Promise<DashboardData>
+  setProfitTracking(mode: ProfitTracking['mode']): Promise<void>
   getFightDetails(eventId: string): Promise<FightDetails | null>
   setFightValuation(eventId: string, mode: ValuationMode): Promise<FightDetails>
   getItemImage(itemId: string, quality: number): Promise<string>

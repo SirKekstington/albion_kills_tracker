@@ -39,11 +39,16 @@ export class StatisticsService {
   getDashboard(range: TimeRange, collector: DashboardData['collector']): DashboardData {
     const profile = this.db.getActiveProfile()
     if (!profile) {
-      return { profile: null, range, stats: { ...EMPTY_STATS }, recentFights: [], collector }
+      return { profile: null, range, stats: { ...EMPTY_STATS }, recentFights: [], collector,
+        tracking: { mode: 'TODAY', startedAt: null }, trackingStats: { ...EMPTY_STATS }, trackingFights: [] }
     }
     const events = this.db.listEvents(profile.id, range)
+    const trackingEvents = this.getTrackingEvents()
     return {
       profile,
+      tracking: this.db.getProfitTracking(profile.id),
+      trackingStats: calculateStats(trackingEvents),
+      trackingFights: trackingEvents.slice(0, 30).map(toFightSummary),
       range,
       stats: calculateStats(events),
       recentFights: events.slice(0, 30).map(toFightSummary),
@@ -55,6 +60,19 @@ export class StatisticsService {
     const profile = this.db.getActiveProfile()
     if (!profile) return { ...EMPTY_STATS }
     return calculateStats(this.db.listEvents(profile.id, 'TODAY'))
+  }
+
+  getTrackingStats(): DashboardStats {
+    return calculateStats(this.getTrackingEvents())
+  }
+
+  private getTrackingEvents(): StoredEvent[] {
+    const profile = this.db.getActiveProfile()
+    if (!profile) return []
+    const tracking = this.db.getProfitTracking(profile.id)
+    return tracking.mode === 'SESSION' && tracking.startedAt !== null
+      ? this.db.listEvents(profile.id, 'ALL', undefined, tracking.startedAt)
+      : this.db.listEvents(profile.id, 'TODAY')
   }
 }
 

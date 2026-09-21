@@ -41,7 +41,19 @@ npm run dist
 
 The installer is written to `release/`.
 
+## Language / Sprache
+
+English is the default. Select **English** or **Deutsch** in the header or on the character-selection screen. The choice is saved immediately and survives restarts. Interface text, dates, numbers and the standard OBS overlay follow the selected language. Custom HTML/CSS and player/item identifiers are preserved.
+
+Englisch ist die Standardsprache. Wähle **English** oder **Deutsch** im Kopfbereich oder bei der Charakterauswahl. Die Auswahl wird sofort gespeichert und bleibt nach einem Neustart erhalten. Oberfläche, Datums- und Zahlenformate sowie das Standard-OBS-Overlay folgen der Sprache. Eigenes HTML/CSS und Spieler-/Item-IDs bleiben erhalten.
+
 ## OBS setup
+
+### Profit tracking period
+
+On the dashboard, **Ab jetzt tracken** starts a new profit session at the current time. Dashboard totals and the OBS overlay count only fights whose event time is on or after that start. Late imports of older fights do not enter the session. **Neue Sitzung ab jetzt** resets the session start, without deleting any fights.
+
+**Ganzer Tag** returns to the current local calendar day, beginning at midnight. Sessions continue across midnight until you change the mode or start a new session. The selection is saved per character and survives app restarts. Fight history and Statistics retain their independent Today / 7 days / 30 days / All time filters.
 
 1. Keep the tracker running.
 2. In OBS, add a **Browser** source.
@@ -59,8 +71,8 @@ Place these placeholders in HTML text (not inside attributes, scripts or CSS):
 
 | Placeholder | Value |
 | --- | --- |
-| `{{profit}}` | Today's net profit, formatted and signed, e.g. `+20.6m` |
-| `{{loss}}` | Today's loss, formatted, e.g. `8.4m` |
+| `{{profit}}` | Tracked net profit (day or session), formatted and signed, e.g. `+20.6m` |
+| `{{loss}}` | Tracked loss (day or session), formatted, e.g. `8.4m` |
 | `{{profit_raw}}` | Unabbreviated profit, e.g. `20600000` |
 | `{{loss_raw}}` | Unabbreviated loss, e.g. `8400000` |
 
