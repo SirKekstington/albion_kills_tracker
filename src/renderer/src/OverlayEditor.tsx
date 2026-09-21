@@ -9,7 +9,7 @@ export function OverlayEditor({ settings, onChange }: { settings: AppSettings; o
   const [preview, setPreview] = useState('')
   useEffect(() => {
     const timer = setTimeout(() => setPreview(renderOverlay({ ...settings, language },
-      overlayValues({ ...EMPTY_STATS, profit: 20600000, lossValue: 8400000 }, language))), 250)
+      overlayValues({ ...EMPTY_STATS, profit: 20600000, assistValue: 12000000, lossValue: 8400000 }, language))), 250)
     return () => clearTimeout(timer)
   }, [settings.overlayHtml, settings.overlayCss, settings.overlayCustomEnabled, settings.overlayTransparent, language])
   return <div className="overlay-editor">
@@ -17,11 +17,12 @@ export function OverlayEditor({ settings, onChange }: { settings: AppSettings; o
     <label className="overlay-check"><input type="checkbox" checked={settings.overlayCustomEnabled} onChange={(event) => onChange({ ...settings, overlayCustomEnabled: event.target.checked })} /> {t("Use custom HTML + CSS")}</label>
     {settings.overlayCustomEnabled && <>
       <p className="detail-note">{t('Insert {{profit}} and {{loss}} in your HTML text. For full numbers use {{profit_raw}} and {{loss_raw}}. Values use the dashboard’s tracking period (whole day or current session) and update every 3 seconds. HTML + CSS only; no JavaScript needed.')}</p>
+      <p className="detail-note">{t('Optional: {{networth_with_assists}} includes kill value + full assist value − loss. Use {{networth_with_assists_raw}} for the full number.')}</p>
       <div className="overlay-code-fields">
         <label>HTML<textarea spellCheck={false} maxLength={100000} value={settings.overlayHtml} onChange={(event) => onChange({ ...settings, overlayHtml: event.target.value })} /></label>
         <label>CSS<textarea spellCheck={false} maxLength={100000} value={settings.overlayCss} onChange={(event) => onChange({ ...settings, overlayCss: event.target.value })} /></label>
       </div>
-      {!/\{\{(profit|loss|profit_raw|loss_raw)\}\}/.test(settings.overlayHtml) && <p className="detail-note">{t("No value placeholders found. Add a placeholder to display live statistics.")}</p>}
+      {!/\{\{(profit|loss|profit_raw|loss_raw|networth_with_assists|networth_with_assists_raw)\}\}/.test(settings.overlayHtml) && <p className="detail-note">{t("No value placeholders found. Add a placeholder to display live statistics.")}</p>}
       <button type="button" className="text-button" onClick={() => onChange({ ...settings, overlayHtml: DEFAULT_OVERLAY_HTML, overlayCss: DEFAULT_OVERLAY_CSS })}>{t("Reset HTML / CSS to example")}</button>
     </>}
     <p className="detail-note">{t("Preview with sample values · Save settings to apply in OBS.")} {settings.overlayTransparent && t("Backgrounds, borders and panel shadows are disabled, including in custom CSS.")}</p>

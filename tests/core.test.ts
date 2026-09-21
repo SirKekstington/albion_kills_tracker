@@ -20,6 +20,12 @@ describe('event classification', () => {
 })
 
 describe('statistics', () => {
+  it('does not include pending or obsolete maximum-sell values in historical average totals', () => {
+    const pending = { ...event('KILL', 15000000), pricingMethod: 'BRECILIEN_SELL_MAX' }
+    expect(calculateStats([pending]).profit).toBe(0)
+    expect(calculateStats([pending]).kills).toBe(1)
+    expect(toFightDetails(pending).pricingPending).toBe(true)
+  })
   it('excludes protected gear while retaining fight counts and the original estimates', () => {
     const noLoss = { ...event('DEATH', 135_407_077), valuationMode: 'NONE' as const }
     const inventoryOnly = { ...event('DEATH', 10_000_000), valuationMode: 'INVENTORY' as const, adjustedValue: 50_000 }

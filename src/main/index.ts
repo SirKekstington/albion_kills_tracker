@@ -3,13 +3,14 @@ import { join } from 'node:path'
 import { z } from 'zod'
 import type { AlbionServer, AppSettings, TimeRange } from '../shared/types'
 import { AlbionApi } from './albion-api'
-import { AppDatabase } from './database'
+import { AppDatabase, getRangeStart } from './database'
 import { EventCollector } from './event-collector'
 import { OverlayServer } from './overlay-server'
 import { PriceService } from './price-service'
 import { StatisticsService } from './statistics-service'
 import { ItemImageCache } from './item-image-cache'
 import { DEFAULT_OVERLAY_APPEARANCE } from '../shared/overlay'
+import { Diagnostics } from './diagnostics'
 
 let mainWindow: BrowserWindow | null = null
 let db: AppDatabase
@@ -19,6 +20,7 @@ let api: AlbionApi
 let statistics: StatisticsService
 let itemImages: ItemImageCache
 let prices: PriceService
+const diagnostics = new Diagnostics(!app.isPackaged)
 
 const serverSchema = z.enum(['EUROPE', 'AMERICAS', 'ASIA'])
 const rangeSchema = z.enum(['TODAY', '7D', '30D', 'ALL'])
@@ -53,6 +55,7 @@ function createWindow(): void {
       contextIsolation: true,
       sandbox: true,
       devTools: !app.isPackaged,
+      additionalArguments: app.isPackaged ? [] : ['--tracker-dev-debug'],
       nodeIntegration: false
     }
   })
@@ -80,6 +83,25 @@ async function applyOverlaySettings(settings: AppSettings): Promise<void> {
 }
 
 function registerIpc(): void {
+  if (!app.isPackaged) {
+    ipcMain.handle('debug:snapshot', () => {
+      const profile = db.getActiveProfile()
+      const tracking = profile ? db.getProfitTracking(profile.id) : null
+      const cutoff = tracking?.mode === 'SESSION' ? tracking.startedAt ?? 0 : getRangeStart('TODAY')!
+      return {
+        now: Date.now(), profile, tracking, collector: collector.getStatus(),
+        pendingPrices: profile ? db.countPendingPrices(profile.id) : 0,
+        entries: diagnostics.snapshot(),
+        events: profile ? db.listEvents(profile.id, 'ALL', 50).map((event) => ({
+          eventId: event.eventId, timestamp: event.timestamp, type: event.type,
+          included: event.timestamp >= cutoff,
+          reason: event.timestamp < cutoff ? 'Before tracking start' : event.type === 'ASSIST' ? 'Assist: excluded from net profit' : 'Included',
+          pricingMethod: event.pricingMethod ?? 'Unknown', value: event.estimatedValue
+        })) : []
+      }
+    })
+    ipcMain.handle('debug:import', (_event, eventId: unknown) => collector.importEvent(z.string().regex(/^\d{1,20}$/).parse(eventId)))
+  }
   ipcMain.handle('language:set', (_event, language: unknown) => {
     db.setLanguage(z.enum(['en', 'de']).parse(language))
     notifyRenderer()
@@ -89,6 +111,7 @@ function registerIpc(): void {
     const profile = db.getActiveProfile()
     if (!profile) throw new Error('No active character')
     db.setProfitTracking(profile.id, validMode)
+    diagnostics.log('info', 'tracking', 'Tracking mode changed', { profileId: profile.id, ...db.getProfitTracking(profile.id) })
     notifyRenderer()
   })
   ipcMain.handle('fights:valuation', async (_event, eventId: unknown, mode: unknown) => {
@@ -140,12 +163,12 @@ function registerIpc(): void {
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null)
   db = new AppDatabase(join(app.getPath('userData'), 'tracker.db'))
-  api = new AlbionApi()
+  api = new AlbionApi(diagnostics)
   itemImages = new ItemImageCache(join(app.getPath('userData'), 'item-images'))
-  prices = new PriceService(db)
+  prices = new PriceService(db, diagnostics)
   statistics = new StatisticsService(db)
   overlay = new OverlayServer(statistics, () => db.getSettings())
-  collector = new EventCollector(db, api, prices, notifyRenderer)
+  collector = new EventCollector(db, api, prices, notifyRenderer, diagnostics)
   registerIpc()
   createWindow()
 

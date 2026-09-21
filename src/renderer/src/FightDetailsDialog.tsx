@@ -47,6 +47,16 @@ export function FightDetailsDialog({ fight, onClose }: { fight: FightSummary; on
     return () => { active = false }
   }, [fight.eventId, attempt])
 
+  useEffect(() => {
+    let active = true
+    const unsubscribe = window.tracker.onUpdated(() => {
+      void window.tracker.getFightDetails(fight.eventId).then((result) => {
+        if (active && result) setDetails(result)
+      }).catch(() => { /* Keep the displayed snapshot during a temporary refresh error. */ })
+    })
+    return () => { active = false; unsubscribe() }
+  }, [fight.eventId])
+
   return <dialog ref={dialog} className="fight-dialog" aria-labelledby="fight-title" onCancel={onClose} onClick={(event) => {
     if (event.target === event.currentTarget) {
       const rect = event.currentTarget.getBoundingClientRect()
@@ -60,6 +70,7 @@ export function FightDetailsDialog({ fight, onClose }: { fight: FightSummary; on
     {error ? <div role="alert" className="detail-state"><p>{t(error)}</p><button className="secondary-button" onClick={() => setAttempt(attempt + 1)}>{t("Try again")}</button></div>
       : !details ? <div className="detail-state" role="status"><LoaderCircle className="spin" /> {t("Loading fight details…")}</div>
       : <>
+        {details.pricingPending && <p className="detail-note" role="status">{t('Price pending. This fight is saved and will be valued automatically.')}</p>}
         <section className="fight-comparison">
           <PlayerGear player={details.player} label={t("Your gear")} />
           <div className="fight-versus">

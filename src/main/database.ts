@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3'
 import { DEFAULT_OVERLAY_APPEARANCE } from '../shared/overlay'
+import { PRICING_METHOD, PRICE_QUALITY } from '../shared/pricing'
 import type {
   AppSettings,
   EventType,
@@ -77,11 +78,11 @@ export class AppDatabase {
         FOREIGN KEY (profile_id, event_id) REFERENCES events(profile_id, event_id) ON DELETE CASCADE
       );
 
-      CREATE TABLE IF NOT EXISTS brecilien_max_prices (
+      CREATE TABLE IF NOT EXISTS brecilien_history_prices_v1 (
         server TEXT NOT NULL,
         item_id TEXT NOT NULL,
         quality INTEGER NOT NULL,
-        max_sell_price INTEGER NOT NULL,
+        average_price INTEGER NOT NULL,
         fetched_at INTEGER NOT NULL,
         PRIMARY KEY (server, item_id, quality)
       );
@@ -134,7 +135,7 @@ export class AppDatabase {
         @profileId, @eventId, @timestamp, @type, @killerName,
         @victimName, @killFame, @estimatedValue, @pricingTimestamp, @rawJson, @pricingMethod
       )
-    `).run({ ...event, pricingMethod: event.pricingMethod ?? 'BRECILIEN_SELL_MAX' })
+    `).run({ ...event, pricingMethod: event.pricingMethod ?? PRICING_METHOD })
     return result.changes > 0
   }
 
@@ -146,16 +147,23 @@ export class AppDatabase {
     return row ? mapEventRow(row) : null
   }
 
-  listLegacyPricedEvents(profileId: string): StoredEvent[] {
-    return (this.db.prepare(`SELECT * FROM events WHERE profile_id = ? AND pricing_method != 'BRECILIEN_SELL_MAX'
-      ORDER BY event_timestamp DESC LIMIT 10`).all(profileId) as EventRow[]).map(mapEventRow)
+  listLegacyPricedEvents(profileId: string, excludeIds: string[] = []): StoredEvent[] {
+    const exclusions = excludeIds.length ? `AND event_id NOT IN (${excludeIds.map(() => '?').join(',')})` : ''
+    return (this.db.prepare(`SELECT * FROM events WHERE profile_id = ? AND pricing_method != ? ${exclusions}
+      ORDER BY (pricing_method = 'PENDING') DESC, event_timestamp DESC LIMIT 2`)
+      .all(profileId, PRICING_METHOD, ...excludeIds) as EventRow[]).map(mapEventRow)
+  }
+
+  countPendingPrices(profileId: string): number {
+    return (this.db.prepare('SELECT COUNT(*) AS count FROM events WHERE profile_id = ? AND pricing_method != ?')
+      .get(profileId, PRICING_METHOD) as { count: number }).count
   }
 
   updateEventPrices(profileId: string, eventId: string, value: number, inventoryValue: number): void {
     this.db.transaction(() => {
       const now = Date.now()
-      this.db.prepare(`UPDATE events SET estimated_value = ?, pricing_timestamp = ?, pricing_method = 'BRECILIEN_SELL_MAX'
-        WHERE profile_id = ? AND event_id = ?`).run(value, now, profileId, eventId)
+      this.db.prepare(`UPDATE events SET estimated_value = ?, pricing_timestamp = ?, pricing_method = ?
+        WHERE profile_id = ? AND event_id = ?`).run(value, now, PRICING_METHOD, profileId, eventId)
       this.db.prepare(`UPDATE event_valuations SET adjusted_value = ?, valuation_timestamp = ?
         WHERE profile_id = ? AND event_id = ? AND valuation_mode = 'INVENTORY'`).run(inventoryValue, now, profileId, eventId)
     })()
@@ -208,25 +216,26 @@ export class AppDatabase {
     return rows.map(mapEventRow)
   }
 
-  getCachedPrice(server: string, itemId: string, quality: number, maxAgeMs: number): number | null {
+  // Reuse the indexed, persistent history cache, always at Excellent quality.
+  getCachedPrice(server: string, itemId: string, maxAgeMs: number): number | null {
     const row = this.db.prepare(`
-      SELECT max_sell_price AS price, fetched_at AS fetchedAt
-      FROM brecilien_max_prices
+      SELECT average_price AS price, fetched_at AS fetchedAt
+      FROM brecilien_history_prices_v1
       WHERE server = ? AND item_id = ? AND quality = ?
-    `).get(server, itemId, quality) as { price: number; fetchedAt: number } | undefined
+    `).get(server, itemId, PRICE_QUALITY) as { price: number; fetchedAt: number } | undefined
 
     if (!row || Date.now() - row.fetchedAt > maxAgeMs) return null
     return row.price
   }
 
-  saveCachedPrice(server: string, itemId: string, quality: number, price: number): void {
+  saveCachedPrice(server: string, itemId: string, price: number): void {
     this.db.prepare(`
-      INSERT INTO brecilien_max_prices (server, item_id, quality, max_sell_price, fetched_at)
+      INSERT INTO brecilien_history_prices_v1 (server, item_id, quality, average_price, fetched_at)
       VALUES (?, ?, ?, ?, ?)
       ON CONFLICT(server, item_id, quality) DO UPDATE SET
-        max_sell_price = excluded.max_sell_price,
+        average_price = excluded.average_price,
         fetched_at = excluded.fetched_at
-    `).run(server, itemId, quality, price, Date.now())
+    `).run(server, itemId, PRICE_QUALITY, price, Date.now())
   }
 
   getSettings(): AppSettings {

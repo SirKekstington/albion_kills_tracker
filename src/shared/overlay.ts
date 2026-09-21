@@ -33,7 +33,9 @@ export function overlayValues(stats: DashboardStats, language: Language = 'en'):
         : absolute >= 1e3 ? Math.round(absolute / 1e3) + 'k' : String(absolute))
     return sign + (language === 'de' ? formatted.replace('.', ',') : formatted)
   }
-  return { profit: format(stats.profit, true), loss: format(stats.lossValue), profit_raw: String(stats.profit), loss_raw: String(stats.lossValue) }
+  const netWorthWithAssists = stats.profit + stats.assistValue
+  return { profit: format(stats.profit, true), loss: format(stats.lossValue), profit_raw: String(stats.profit), loss_raw: String(stats.lossValue),
+    networth_with_assists: format(netWorthWithAssists, true), networth_with_assists_raw: String(netWorthWithAssists) }
 }
 
 // Shared by the OBS page and the sandboxed, script-free editor preview.
@@ -43,7 +45,7 @@ export function renderOverlay(appearance: OverlayAppearance, values: Record<stri
     : DEFAULT_OVERLAY_HTML.replace('Profit:', `${translate(language, 'Profit')}:`).replace('Loss:', `${translate(language, 'Loss')}:`)
   const css = appearance.overlayCustomEnabled ? appearance.overlayCss : `${DEFAULT_OVERLAY_CSS}
 .overlay { padding:12px 16px; border-radius:12px; background:rgba(10,13,20,.82); border:1px solid rgba(255,255,255,.10); text-shadow:0 2px 10px #000; backdrop-filter:blur(8px); }`
-  const content = html.replace(/\{\{(profit|loss|profit_raw|loss_raw)\}\}/g, (_, key: string) =>
+  const content = html.replace(/\{\{(profit|loss|profit_raw|loss_raw|networth_with_assists|networth_with_assists_raw)\}\}/g, (_, key: string) =>
     `<span data-overlay-value="${key}">${values[key] ?? '—'}</span>`)
   const styles = `<style>html,body{margin:0;background:transparent;overflow:hidden;}\n${css.replace(/<\/style/gi, '<\\/style')}
 ${appearance.overlayTransparent ? 'html,body,body *{background:transparent!important;background-image:none!important;box-shadow:none!important;backdrop-filter:none!important;border-color:transparent!important;}' : ''}</style>`

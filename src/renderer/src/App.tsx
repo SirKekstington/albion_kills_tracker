@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import type { ReactElement } from 'react'
 import {
   Activity,
@@ -38,6 +38,7 @@ import { FightWeapon } from './FightWeapon'
 import { t, locale, useLanguage, applyLanguage, LanguageSelect } from './i18n'
 
 type View = 'dashboard' | 'fights' | 'statistics' | 'settings'
+const DebugPanel = import.meta.env.DEV ? lazy(() => import('./DebugPanel')) : null
 
 const RANGES: Array<{ key: TimeRange; label: string }> = [
   { key: 'TODAY', label: 'Today' },
@@ -47,6 +48,7 @@ const RANGES: Array<{ key: TimeRange; label: string }> = [
 ]
 
 const EMPTY_DASHBOARD: DashboardData = {
+  pendingPrices: 0,
   tracking: { mode: 'TODAY', startedAt: null },
   trackingStats: { ...EMPTY_STATS },
   trackingFights: [],
@@ -135,6 +137,7 @@ function TrackerApp(): ReactElement {
           void loadDashboard()
         }} />}
         <RepositoryFooter />
+        {DebugPanel && <Suspense fallback={null}><DebugPanel /></Suspense>}
       </main>
     </div>
   )
@@ -214,10 +217,13 @@ function Dashboard({ data, onTrackingChanged, onShowFights }: {
       <div><b>{data.tracking.mode === 'SESSION' ? t('Session active') : t('Whole day')}</b><p>{data.tracking.mode === 'SESSION' && data.tracking.startedAt !== null ? t('Since {date}', { date: new Date(data.tracking.startedAt).toLocaleString(locale()) }) : t('From today at 00:00 (local time)')}</p></div>
       <div className="tracking-actions"><button className={`secondary-button ${data.tracking.mode === 'TODAY' ? 'selected' : ''}`} disabled={trackingBusy || data.tracking.mode === 'TODAY'} onClick={() => void changeTracking('TODAY')}>{t('Whole day')}</button><button className="primary-button" disabled={trackingBusy} onClick={() => void changeTracking('SESSION')}>{data.tracking.mode === 'SESSION' ? t('New session from now') : t('Track from now')}</button></div>
     </section>
+    <p className="detail-note">{t('Sessions use the fight time, not the import time. Earlier fights remain in Whole day. Assists do not increase net profit.')}</p>
     {trackingError && <p className="alert" role="alert">{t(trackingError)}</p>}
+    {data.pendingPrices > 0 && <p className="detail-note" role="status">{t('{count} fights await price calculation. Fights are already saved; silver totals are provisional.', { count: data.pendingPrices })}</p>}
     {data.collector.lastError && <div className="alert"><ShieldAlert size={18} /><span>{t('Sync failed. Please try refreshing again.')} {t("Existing statistics remain available.")}</span></div>}
-    <section className="stats-grid">
+    <section className="stats-grid tracking-stats">
       <StatCard tone="profit" icon={<CircleDollarSign />} label={t("Net profit")} value={formatSilver(stats.profit, true)} note={t("Kill value − loss")} />
+      <StatCard tone="profit" icon={<UsersRound />} label={t("Net worth with assists")} value={formatSilver(stats.profit + stats.assistValue, true)} note={t("Kill value + assist value − loss")} />
       <StatCard tone="loss" icon={<Skull />} label={t("Loss")} value={formatSilver(stats.lossValue)} note={t(stats.deaths === 1 ? '{count} death' : '{count} deaths', { count: stats.deaths })} />
       <StatCard tone="kill" icon={<Swords />} label={t("Kill value")} value={`${formatSilver(stats.killValue)} (${formatSilver(stats.assistValue)})`} note={t("Assist value in brackets")} />
       <StatCard tone="neutral" icon={<Crosshair />} label={t("Fights")} value={`${stats.kills} / ${stats.deaths} / ${stats.assists}`} note={t("Kills · Deaths · Assists")} />
@@ -228,7 +234,7 @@ function Dashboard({ data, onTrackingChanged, onShowFights }: {
     </section>
     <section className="two-column">
       <div className="content-card mini-insight"><div className="insight-icon"><Radio /></div><div><p className="eyebrow">{t("OBS OVERLAY")}</p><h3>{t("Ready for your stream")}</h3><p>{t("Profit and loss update automatically while the app is running.")}</p></div></div>
-      <div className="content-card mini-insight"><div className="insight-icon purple"><CircleDollarSign /></div><div><p className="eyebrow">{t("PRICING")}</p><h3>{t("Brecilien max sell prices")}</h3><p>{t("Maximum sell price in Brecilien, saved with every fight.")}</p></div></div>
+      <div className="content-card mini-insight"><div className="insight-icon purple"><CircleDollarSign /></div><div><p className="eyebrow">{t("PRICING")}</p><h3>{t("Brecilien 7-day average")}</h3><p>{t("Volume-weighted average of the last 7 completed days in Brecilien. All items use Excellent quality prices.")}</p></div></div>
     </section>
   </div>
 }
@@ -244,7 +250,7 @@ function FightList({ fights }: { fights: FightSummary[] }): ReactElement {
     <div className={`fight-type ${fight.type.toLowerCase()}`}>{fight.type === 'KILL' ? <Swords /> : fight.type === 'ASSIST' ? <UsersRound /> : <Skull />}</div>
     <div className="fight-identity"><div className="fight-weapons"><FightWeapon item={fight.playerWeapon} label={t("Your weapon")} /><span className="weapon-versus" aria-hidden="true">/</span><FightWeapon item={fight.opponentWeapon} label={t('Weapon of {name}', {name: fight.opponentName})} /></div><div className="fight-main"><b>{t(fight.type)}{fight.valuationMode === 'NONE' ? t(" · NO LOSS") : fight.valuationMode === 'INVENTORY' ? t(" · INVENTORY ONLY") : ''}</b><span>{fight.opponentName}</span></div></div>
     <div className="fight-fame"><span>{t("Kill fame")}</span><b>{fight.killFame.toLocaleString(locale())}</b></div>
-    <div className={`fight-value ${fight.type.toLowerCase()}`}>{fight.type === 'DEATH' ? '−' : fight.type === 'ASSIST' ? '(' : '+'}{formatSilver(fight.estimatedValue)}{fight.type === 'ASSIST' ? ')' : ''}</div>
+    <div className={`fight-value ${fight.type.toLowerCase()}`} title={fight.pricingPending ? t('Price pending') : undefined}>{fight.pricingPending ? '…' : <>{fight.type === 'DEATH' ? '−' : fight.type === 'ASSIST' ? '(' : '+'}{formatSilver(fight.estimatedValue)}{fight.type === 'ASSIST' ? ')' : ''}</>}</div>
     <time>{relativeTime(fight.timestamp)}</time>
   </button>)}</div>{selected && <FightDetailsDialog key={selected.eventId} fight={selected} onClose={() => setSelected(null)} />}</>
 }

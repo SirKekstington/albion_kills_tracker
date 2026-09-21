@@ -2,6 +2,10 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { AppApi } from '../shared/types'
 
 const api: AppApi & { onUpdated(callback: () => void): () => void } = {
+  ...(process.argv.includes('--tracker-dev-debug') ? {
+    getDebugSnapshot: () => ipcRenderer.invoke('debug:snapshot'),
+    debugImportEvent: (eventId: string) => ipcRenderer.invoke('debug:import', eventId)
+  } : {}),
   setLanguage: (language) => ipcRenderer.invoke('language:set', language),
   searchPlayers: (server, query) => ipcRenderer.invoke('players:search', server, query),
   saveProfile: (profile) => ipcRenderer.invoke('profile:save', profile),

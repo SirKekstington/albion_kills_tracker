@@ -8,9 +8,12 @@ import type { StatisticsService } from '../src/main/statistics-service'
 describe('overlay templates', () => {
   it('formats positive, negative and raw values without losing the sign', () => {
     expect(overlayValues({ ...EMPTY_STATS, profit: -20_600_000, lossValue: 8_400_000 })).toEqual({
-      profit: '−20.6m', loss: '8.4m', profit_raw: '-20600000', loss_raw: '8400000'
+      profit: '−20.6m', loss: '8.4m', profit_raw: '-20600000', loss_raw: '8400000',
+      networth_with_assists: '−20.6m', networth_with_assists_raw: '-20600000'
     })
     expect(overlayValues(EMPTY_STATS).profit).toBe('+0')
+    expect(overlayValues({ ...EMPTY_STATS, profit: -2000, assistValue: 3500 }).networth_with_assists_raw).toBe('1500')
+    expect(overlayValues({ ...EMPTY_STATS, profit: 1000000, assistValue: 500000 }, 'de').networth_with_assists).toBe('+1,5m')
   })
 
   it('binds every repeated placeholder and supports raw numbers', () => {
@@ -37,8 +40,8 @@ describe('overlay templates', () => {
 describe('live OBS overlay', () => {
   it('serves saved custom designs, refreshes values and detects design changes', async () => {
     let appearance = { ...DEFAULT_OVERLAY_APPEARANCE, overlayCustomEnabled: true,
-      overlayHtml: '<strong>{{profit}}</strong><p>{{loss}}</p>' }
-    let stats = { ...EMPTY_STATS, profit: 1000, lossValue: 200 }
+      overlayHtml: '<strong>{{profit}}</strong><p>{{loss}}</p><b>{{networth_with_assists}}</b><i>{{networth_with_assists_raw}}</i>' }
+    let stats = { ...EMPTY_STATS, profit: 1000, assistValue: 3000, lossValue: 200 }
     const todayStats = { ...EMPTY_STATS, profit: 12345, lossValue: 600 }
     const server = new OverlayServer({ getTodayStats: () => todayStats, getTrackingStats: () => stats } as StatisticsService, () => appearance)
     try {
@@ -48,13 +51,15 @@ describe('live OBS overlay', () => {
       const html = await response.text()
       expect(response.headers.get('content-security-policy')).toContain("script-src 'nonce-")
       expect(html).toContain('data-overlay-value="profit">+1k')
+      expect(html).toContain('data-overlay-value="networth_with_assists">+4k')
+      expect(html).toContain('data-overlay-value="networth_with_assists_raw">4000')
       const endpoint = new URL('/api/overlay', url)
       const original = await (await fetch(endpoint)).json()
       stats = { ...stats, profit: -2000 }
       const changed = await (await fetch(endpoint)).json()
       expect(changed.values.profit).toBe('−2k')
       expect(changed.revision).toBe(original.revision)
-      const elements = ['profit', 'profit', 'loss'].map((key) => ({ getAttribute: () => key, textContent: '' }))
+      const elements = ['profit', 'profit', 'loss', 'networth_with_assists', 'networth_with_assists_raw'].map((key) => ({ getAttribute: () => key, textContent: '' }))
       let updateFinished!: () => void
       const finished = new Promise<void>((resolve) => { updateFinished = resolve })
       runInNewContext(html.match(/<script nonce="[^"]+">([\s\S]*?)<\/script>/)![1], {
@@ -64,7 +69,7 @@ describe('live OBS overlay', () => {
         setTimeout: updateFinished
       })
       await finished
-      expect(elements.map((element) => element.textContent)).toEqual(['−2k', '−2k', '200'])
+      expect(elements.map((element) => element.textContent)).toEqual(['−2k', '−2k', '200', '+1k', '1000'])
       appearance = { ...appearance, overlayTransparent: true }
       const updated = await (await fetch(endpoint)).json()
       expect(updated.revision).not.toBe(original.revision)

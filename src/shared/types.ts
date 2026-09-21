@@ -78,6 +78,7 @@ export interface DashboardStats {
 }
 
 export interface FightSummary {
+  pricingPending: boolean
   playerWeapon: AlbionItem | null
   opponentWeapon: AlbionItem | null
   valuationMode: ValuationMode
@@ -90,6 +91,7 @@ export interface FightSummary {
 }
 
 export interface DashboardData {
+  pendingPrices: number
   tracking: ProfitTracking
   trackingStats: DashboardStats
   trackingFights: FightSummary[]
@@ -138,6 +140,8 @@ export interface SaveProfileInput {
 }
 
 export interface AppApi {
+  getDebugSnapshot?(): Promise<DebugSnapshot>
+  debugImportEvent?(eventId: string): Promise<boolean>
   setLanguage(language: 'en' | 'de'): Promise<void>
   searchPlayers(server: AlbionServer, query: string): Promise<PlayerSearchResult[]>
   saveProfile(input: SaveProfileInput): Promise<void>
@@ -152,6 +156,24 @@ export interface AppApi {
   saveSettings(settings: AppSettings): Promise<AppSettings>
   getOverlayUrl(): Promise<string>
   openExternal(url: string): Promise<void>
+}
+
+export interface DebugEntry {
+  timestamp: number
+  level: 'info' | 'warn' | 'error'
+  scope: string
+  message: string
+  data?: Record<string, unknown>
+}
+
+export interface DebugSnapshot {
+  now: number
+  profile: PlayerProfile | null
+  tracking: ProfitTracking | null
+  collector: CollectorStatus
+  pendingPrices: number
+  entries: DebugEntry[]
+  events: Array<{ eventId: string; timestamp: number; type: EventType; included: boolean; reason: string; pricingMethod: string; value: number }>
 }
 
 export const EMPTY_STATS: DashboardStats = {

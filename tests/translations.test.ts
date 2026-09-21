@@ -17,7 +17,7 @@ describe('English and German', () => {
   })
 
   it('provides German translations for every literal translation key in the UI', () => {
-    for (const file of ['App', 'FightDetailsDialog', 'FightWeapon', 'OverlayEditor', 'i18n']) {
+    for (const file of ['App', 'FightDetailsDialog', 'FightWeapon', 'OverlayEditor', 'i18n', 'DebugPanel']) {
       const text = readFileSync(`src/renderer/src/${file}.tsx`, 'utf8')
       const source = ts.createSourceFile(file + '.tsx', text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
       const visit = (node: ts.Node): void => {
@@ -25,7 +25,7 @@ describe('English and German', () => {
           expect(german, `${file}: ${node.arguments[0].text}`).toHaveProperty(node.arguments[0].text)
         }
         if (ts.isJsxText(node) && /[a-zA-Z]/.test(node.text)) {
-          expect(['ALBION', 'PvP Tracker', 'HTML', 'CSS', 'English', 'Deutsch']).toContain(node.text.trim())
+          expect(['ALBION', 'PvP Tracker', 'HTML', 'CSS', 'English', 'Deutsch', '· DEV']).toContain(node.text.trim())
         }
         ts.forEachChild(node, visit)
       }

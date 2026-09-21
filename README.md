@@ -1,14 +1,15 @@
 # Albion PvP Tracker
 
-A modern, local-first desktop tracker for Albion Online PvP events. It stores data in SQLite, values victim equipment with maximum sell prices in Brecilien, and exposes a small OBS browser-source overlay.
+A modern, local-first desktop tracker for Albion Online PvP events. It stores data in SQLite, values victim equipment with historical average prices in Brecilien, and exposes a small OBS browser-source overlay.
 
 ## Included in this MVP
 
 - Europe, Americas, and Asia character search
 - automatic polling of global events plus recent player kills/deaths
 - KILL / ASSIST / DEATH classification
-- Brecilien `sell_price_max` values from the Albion Online Data Project
-- values are frozen when an event is first stored; legacy median valuations are converted to Brecilien maximum sell prices in batches of ten during synchronization
+- Brecilien historical `avg_price`, weighted by `item_count`, over the last seven completed UTC days
+- fights are saved immediately; valuation runs separately and retries failures without blocking imports
+- legacy median/max-sell valuations are automatically replaced; pending values are excluded from silver totals until recalculated
 - Today / 7 days / 30 days / all-time statistics
 - `Profit = direct Kill Value - Loss`; Assist Value is shown separately in brackets
 - local SQLite storage in Electron's application-data directory
@@ -101,7 +102,18 @@ The tracker fills in the values and updates every three seconds; custom JavaScri
 
 Albion's Game Info API is public but not a formally supported product API. The global event endpoint only exposes a recent window. Direct kills and deaths can be backfilled from player endpoints, but assists can be missed while the app is not running. A future hosted collector would be needed for complete 24/7 assist history.
 
-Market reports can also be missing or stale. The tracker uses the latest reported positive maximum sell price in Brecilien, with a one-hour cache. It does not fall back to other cities or sell minimums. An item is valued at zero when no usable report exists.
+Market reports can also be missing. The tracker uses daily historical sell-order averages for the last seven completed UTC days in Brecilien, weighted by reported item volume, with a persistent SQLite cache refreshed after one hour. Every item uses Excellent quality (4), regardless of its actual quality. Indexed lookups and concurrent request sharing reuse one price per server and exact item ID (including tier/enchantment), also across app restarts. Existing fight valuations are recalculated in the background; manual loss overrides are preserved. The current partial day, other cities and maximum sell quotes are excluded. An item is valued at zero when no usable history exists; this is logged in DEV diagnostics. HTTP failures leave the fight queued for retry. Historical averages remain estimates, not actual loot proceeds.
+
+## DEV diagnostics
+
+Run `npm run dev` and expand **Developer diagnostics** at the bottom of the app. This panel and its IPC handlers are unavailable in packaged releases.
+
+- Inspect the active profile, saved session start, collector status and pending-price count.
+- See whether a stored event falls before the session start and whether it is an assist (excluded from net profit).
+- Inspect the latest 500 in-memory log entries, including event pagination, endpoint failures, price calculations and retries. Filter warnings/errors or copy a JSON snapshot before closing the app.
+- Enter an event ID and use **Check and import event** to retrieve a missing event for the active participant. Existing events are not duplicated; importing never changes the session start.
+
+The global feed is paged with overlap, up to the API's recent window. Old assists can still be unavailable after a long offline period. Timestamp filtering uses the fight's UTC event time rather than the later import time. A new session intentionally excludes earlier events; select **Whole day** to include the earlier fights from today.
 
 ## Privacy
 
