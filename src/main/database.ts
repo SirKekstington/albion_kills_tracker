@@ -11,6 +11,7 @@ import type {
 } from '../shared/types'
 
 interface EventRow {
+  pricing_method: string
   valuation_mode?: ValuationMode
   adjusted_value?: number
   valuation_timestamp?: number
@@ -76,11 +77,11 @@ export class AppDatabase {
         FOREIGN KEY (profile_id, event_id) REFERENCES events(profile_id, event_id) ON DELETE CASCADE
       );
 
-      CREATE TABLE IF NOT EXISTS item_prices (
+      CREATE TABLE IF NOT EXISTS brecilien_max_prices (
         server TEXT NOT NULL,
         item_id TEXT NOT NULL,
         quality INTEGER NOT NULL,
-        median_sell_price INTEGER NOT NULL,
+        max_sell_price INTEGER NOT NULL,
         fetched_at INTEGER NOT NULL,
         PRIMARY KEY (server, item_id, quality)
       );
@@ -128,12 +129,12 @@ export class AppDatabase {
     const result = this.db.prepare(`
       INSERT OR IGNORE INTO events (
         profile_id, event_id, event_timestamp, event_type, killer_name,
-        victim_name, kill_fame, estimated_value, pricing_timestamp, raw_json
+        victim_name, kill_fame, estimated_value, pricing_timestamp, raw_json, pricing_method
       ) VALUES (
         @profileId, @eventId, @timestamp, @type, @killerName,
-        @victimName, @killFame, @estimatedValue, @pricingTimestamp, @rawJson
+        @victimName, @killFame, @estimatedValue, @pricingTimestamp, @rawJson, @pricingMethod
       )
-    `).run(event)
+    `).run({ ...event, pricingMethod: event.pricingMethod ?? 'BRECILIEN_SELL_MAX' })
     return result.changes > 0
   }
 
@@ -143,6 +144,21 @@ export class AppDatabase {
       WHERE e.profile_id = ? AND e.event_id = ?`)
       .get(profileId, eventId) as EventRow | undefined
     return row ? mapEventRow(row) : null
+  }
+
+  listLegacyPricedEvents(profileId: string): StoredEvent[] {
+    return (this.db.prepare(`SELECT * FROM events WHERE profile_id = ? AND pricing_method != 'BRECILIEN_SELL_MAX'
+      ORDER BY event_timestamp DESC LIMIT 10`).all(profileId) as EventRow[]).map(mapEventRow)
+  }
+
+  updateEventPrices(profileId: string, eventId: string, value: number, inventoryValue: number): void {
+    this.db.transaction(() => {
+      const now = Date.now()
+      this.db.prepare(`UPDATE events SET estimated_value = ?, pricing_timestamp = ?, pricing_method = 'BRECILIEN_SELL_MAX'
+        WHERE profile_id = ? AND event_id = ?`).run(value, now, profileId, eventId)
+      this.db.prepare(`UPDATE event_valuations SET adjusted_value = ?, valuation_timestamp = ?
+        WHERE profile_id = ? AND event_id = ? AND valuation_mode = 'INVENTORY'`).run(inventoryValue, now, profileId, eventId)
+    })()
   }
 
   setEventValuation(profileId: string, eventId: string, mode: ValuationMode, value: number): void {
@@ -194,8 +210,8 @@ export class AppDatabase {
 
   getCachedPrice(server: string, itemId: string, quality: number, maxAgeMs: number): number | null {
     const row = this.db.prepare(`
-      SELECT median_sell_price AS price, fetched_at AS fetchedAt
-      FROM item_prices
+      SELECT max_sell_price AS price, fetched_at AS fetchedAt
+      FROM brecilien_max_prices
       WHERE server = ? AND item_id = ? AND quality = ?
     `).get(server, itemId, quality) as { price: number; fetchedAt: number } | undefined
 
@@ -205,10 +221,10 @@ export class AppDatabase {
 
   saveCachedPrice(server: string, itemId: string, quality: number, price: number): void {
     this.db.prepare(`
-      INSERT INTO item_prices (server, item_id, quality, median_sell_price, fetched_at)
+      INSERT INTO brecilien_max_prices (server, item_id, quality, max_sell_price, fetched_at)
       VALUES (?, ?, ?, ?, ?)
       ON CONFLICT(server, item_id, quality) DO UPDATE SET
-        median_sell_price = excluded.median_sell_price,
+        max_sell_price = excluded.max_sell_price,
         fetched_at = excluded.fetched_at
     `).run(server, itemId, quality, price, Date.now())
   }
@@ -265,6 +281,7 @@ export function getRangeStart(range: TimeRange, now = new Date()): number | null
 
 function mapEventRow(row: EventRow): StoredEvent {
   return {
+    pricingMethod: row.pricing_method,
     valuationMode: row.valuation_mode ?? 'FULL',
     adjustedValue: row.adjusted_value ?? undefined,
     valuationTimestamp: row.valuation_timestamp ?? undefined,

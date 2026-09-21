@@ -2,21 +2,10 @@ import { describe, expect, it } from 'vitest'
 import type { AlbionEvent, StoredEvent } from '../src/shared/types'
 import { getRangeStart } from '../src/main/database'
 import { classifyEvent } from '../src/main/event-collector'
-import { median } from '../src/main/price-service'
 import { calculateStats, StatisticsService, toFightDetails } from '../src/main/statistics-service'
 import type { AppDatabase } from '../src/main/database'
 
 const playerId = 'player-1'
-
-describe('median pricing', () => {
-  it('uses the middle city price for odd counts', () => {
-    expect(median([455_000, 409_000, 420_000, 412_000, 435_000])).toBe(420_000)
-  })
-
-  it('averages both middle values for even counts', () => {
-    expect(median([100, 300, 200, 400])).toBe(250)
-  })
-})
 
 describe('event classification', () => {
   it.each([

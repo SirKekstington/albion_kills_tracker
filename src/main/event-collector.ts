@@ -7,7 +7,7 @@ import type {
 } from '../shared/types'
 import { AlbionApi } from './albion-api'
 import { AppDatabase } from './database'
-import { PriceService } from './price-service'
+import { PriceService, PRICING_METHOD } from './price-service'
 
 export class EventCollector {
   private timer: NodeJS.Timeout | null = null
@@ -59,6 +59,14 @@ export class EventCollector {
     this.status.lastError = null
     this.onUpdated()
     try {
+      // Convert historical snapshots gradually; preserve manual no-loss / inventory-only choices.
+      for (const stored of this.db.listLegacyPricedEvents(profile.id)) {
+        const raw = JSON.parse(stored.rawJson) as AlbionEvent
+        if (!raw.Victim) continue
+        const value = await this.prices.calculateVictimValue(profile.server, raw.Victim)
+        const inventoryValue = await this.prices.calculateVictimValue(profile.server, { Inventory: raw.Victim.Inventory })
+        this.db.updateEventPrices(profile.id, stored.eventId, value, inventoryValue)
+      }
       const results = await Promise.allSettled([
         this.api.getRecentGlobalEvents(profile.server),
         this.api.getRecentPlayerEvents(profile.server, profile.id, 'kills'),
@@ -89,6 +97,7 @@ export class EventCollector {
 
     const estimatedValue = await this.prices.calculateVictimValue(profile.server, event.Victim)
     const stored: StoredEvent = {
+      pricingMethod: PRICING_METHOD,
       eventId,
       profileId: profile.id,
       timestamp: Date.parse(event.TimeStamp) || Date.now(),

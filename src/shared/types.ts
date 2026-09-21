@@ -51,6 +51,7 @@ export interface AlbionEvent {
 }
 
 export interface StoredEvent {
+  pricingMethod?: string
   valuationMode?: ValuationMode
   adjustedValue?: number
   valuationTimestamp?: number

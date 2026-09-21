@@ -1,14 +1,14 @@
 # Albion PvP Tracker
 
-A modern, local-first desktop tracker for Albion Online PvP events. It stores data in SQLite, values victim equipment with median market prices, and exposes a small OBS browser-source overlay.
+A modern, local-first desktop tracker for Albion Online PvP events. It stores data in SQLite, values victim equipment with maximum sell prices in Brecilien, and exposes a small OBS browser-source overlay.
 
 ## Included in this MVP
 
 - Europe, Americas, and Asia character search
 - automatic polling of global events plus recent player kills/deaths
 - KILL / ASSIST / DEATH classification
-- median of city `sell_price_min` values from the Albion Online Data Project
-- values are frozen when an event is first stored
+- Brecilien `sell_price_max` values from the Albion Online Data Project
+- values are frozen when an event is first stored; legacy median valuations are converted to Brecilien maximum sell prices in batches of ten during synchronization
 - Today / 7 days / 30 days / all-time statistics
 - `Profit = direct Kill Value - Loss`; Assist Value is shown separately in brackets
 - local SQLite storage in Electron's application-data directory
@@ -101,7 +101,7 @@ The tracker fills in the values and updates every three seconds; custom JavaScri
 
 Albion's Game Info API is public but not a formally supported product API. The global event endpoint only exposes a recent window. Direct kills and deaths can be backfilled from player endpoints, but assists can be missed while the app is not running. A future hosted collector would be needed for complete 24/7 assist history.
 
-Market reports can also be missing or stale. The tracker prefers sell-order reports from the last 24 hours and falls back to available non-zero reports. An item is valued at zero when no usable report exists.
+Market reports can also be missing or stale. The tracker uses the latest reported positive maximum sell price in Brecilien, with a one-hour cache. It does not fall back to other cities or sell minimums. An item is valued at zero when no usable report exists.
 
 ## Privacy
 

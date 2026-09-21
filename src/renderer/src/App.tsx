@@ -228,7 +228,7 @@ function Dashboard({ data, onTrackingChanged, onShowFights }: {
     </section>
     <section className="two-column">
       <div className="content-card mini-insight"><div className="insight-icon"><Radio /></div><div><p className="eyebrow">{t("OBS OVERLAY")}</p><h3>{t("Ready for your stream")}</h3><p>{t("Profit and loss update automatically while the app is running.")}</p></div></div>
-      <div className="content-card mini-insight"><div className="insight-icon purple"><CircleDollarSign /></div><div><p className="eyebrow">{t("PRICING")}</p><h3>{t("Stable median values")}</h3><p>{t("Median of current city sell prices, saved with every fight.")}</p></div></div>
+      <div className="content-card mini-insight"><div className="insight-icon purple"><CircleDollarSign /></div><div><p className="eyebrow">{t("PRICING")}</p><h3>{t("Brecilien max sell prices")}</h3><p>{t("Maximum sell price in Brecilien, saved with every fight.")}</p></div></div>
     </section>
   </div>
 }
