@@ -31,8 +31,15 @@ jobs:
       - name: Tests ausführen
         run: npm test
 
-      - name: Windows-Installer bauen
-        run: npm run dist -- --publish never
+      - name: Produktionsbuild erstellen
+        env:
+          NODE_ENV: production
+        run: npm run build
+
+      - name: Windows-Installer ohne Entwicklerwerkzeuge bauen
+        env:
+          NODE_ENV: production
+        run: npx electron-builder --win nsis --publish never
 
       - name: GitHub Release erstellen
         shell: pwsh

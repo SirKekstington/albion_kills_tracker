@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron'
 import { join } from 'node:path'
 import { z } from 'zod'
 import type { AlbionServer, AppSettings, TimeRange } from '../shared/types'
@@ -52,16 +52,18 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       sandbox: true,
+      devTools: !app.isPackaged,
       nodeIntegration: false
     }
   })
+  mainWindow.setMenu(null)
   mainWindow.once('ready-to-show', () => mainWindow?.show())
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https://')) void shell.openExternal(url)
     return { action: 'deny' }
   })
 
-  if (process.env.ELECTRON_RENDERER_URL) {
+  if (!app.isPackaged && process.env.ELECTRON_RENDERER_URL) {
     void mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
   } else {
     void mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
@@ -125,6 +127,7 @@ function registerIpc(): void {
 }
 
 app.whenReady().then(async () => {
+  Menu.setApplicationMenu(null)
   db = new AppDatabase(join(app.getPath('userData'), 'tracker.db'))
   api = new AlbionApi()
   itemImages = new ItemImageCache(join(app.getPath('userData'), 'item-images'))

@@ -8,6 +8,7 @@ import {
   CircleDollarSign,
   Clipboard,
   Crosshair,
+  Github,
   LoaderCircle,
   Radio,
   RefreshCw,
@@ -121,6 +122,7 @@ export function App(): ReactElement {
           setView('dashboard')
           void loadDashboard()
         }} />}
+        <RepositoryFooter />
       </main>
     </div>
   )
@@ -128,6 +130,14 @@ export function App(): ReactElement {
 
 function Splash(): ReactElement {
   return <div className="splash"><div className="brand-mark"><Crosshair /></div><LoaderCircle className="spin" /></div>
+}
+
+function RepositoryFooter(): ReactElement {
+  const url = 'https://github.com/SirKekstington/albion_kills_tracker'
+  return <footer className="repository-footer"><a href={url} onClick={(event) => {
+    event.preventDefault()
+    void window.tracker.openExternal(url)
+  }}><Github size={15} aria-hidden="true" /> Albion PvP Tracker on GitHub</a></footer>
 }
 
 function Sidebar({ view, onView, profile }: { view: View; onView: (v: View) => void; profile: PlayerProfile }): ReactElement {
@@ -291,6 +301,7 @@ function Onboarding({ onComplete, compact = false }: { onComplete: (p: PlayerPro
     {error && <div className="alert"><ShieldAlert size={18} /><span>{error}</span></div>}
     {results.length > 0 && <div className="search-results">{results.slice(0, 8).map((player) => <button key={player.id} onClick={() => void choose(player)}><div className="avatar">{player.name.slice(0, 2).toUpperCase()}</div><div><b>{player.name}</b><span>{player.guildName || 'No guild'}{player.allianceName ? ` · ${player.allianceName}` : ''}</span></div><ChevronRight /></button>)}</div>}
     {!compact && <p className="disclaimer">Not affiliated with Sandbox Interactive. Market prices are provided by the Albion Online Data Project.</p>}
+    {!compact && <RepositoryFooter />}
   </div></div>
 }
 
