@@ -1,0 +1,52 @@
+name: Windows Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v5
+
+      - name: Node.js installieren
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Abhängigkeiten installieren
+        run: npm ci
+
+      - name: TypeScript prüfen
+        run: npm run typecheck
+
+      - name: Tests ausführen
+        run: npm test
+
+      - name: Windows-Installer bauen
+        run: npm run dist
+
+      - name: GitHub Release erstellen
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $installer = Get-ChildItem release -Filter "*Setup*.exe" |
+            Select-Object -First 1
+
+          if (-not $installer) {
+            throw "Kein Installer im release-Ordner gefunden."
+          }
+
+          gh release create "${{ github.ref_name }}" `
+            "$($installer.FullName)" `
+            --title "Albion PvP Tracker ${{ github.ref_name }}" `
+            --generate-notes
