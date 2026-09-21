@@ -14,7 +14,7 @@ const searchResponseSchema = z.object({
 })
 
 export class AlbionApi {
-  private readonly cursors = new Map<string, number>()
+  private readonly cursors = new Map<string, { timestamp: number; since: number }>()
   constructor(private readonly diagnostics = new Diagnostics()) {}
   async searchPlayers(server: AlbionServer, query: string): Promise<PlayerSearchResult[]> {
     const data = await this.getJson(
@@ -52,7 +52,8 @@ export class AlbionApi {
 
   private async getEventPages(base: string, since = Date.now() - 86400000, cursorKey = base): Promise<AlbionEvent[]> {
     const started = Date.now()
-    const cutoff = (this.cursors.get(cursorKey) ?? since) - 120000
+    const cursor = this.cursors.get(cursorKey)
+    const cutoff = (cursor && since >= cursor.since ? Math.max(since, cursor.timestamp) : since) - 120000
     const events: AlbionEvent[] = []
     const seen = new Set<string>()
     // The public API has a finite recent window; report when its pagination limit is reached.
@@ -74,7 +75,10 @@ export class AlbionApi {
       }
       this.diagnostics.log('info', 'events', 'Event page received', { base, offset, received: page.length, added, cutoff })
       if (page.length < 50 || page.some((event) => parseUtcTimestamp(event.TimeStamp) <= cutoff)) {
-        this.cursors.set(cursorKey, started)
+        // The feed can lag behind real time by several minutes. Advancing to
+        // the poll time would skip events published late on subsequent pages.
+        const timestamps = events.map((event) => parseUtcTimestamp(event.TimeStamp)).filter((time) => Number.isFinite(time) && time <= started)
+        if (timestamps.length) this.cursors.set(cursorKey, { timestamp: Math.max(...timestamps), since })
         return events
       }
       if (!added) {

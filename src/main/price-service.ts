@@ -14,6 +14,7 @@ export interface HistoryRow {
 }
 const DAY_MS = 86400000
 const PRICE_CACHE_MS = 60 * 60 * 1000
+const MARKET_CITIES = ['Brecilien', 'Bridgewatch', 'Caerleon', 'Fort Sterling', 'Lymhurst', 'Martlock', 'Thetford']
 
 export function historyWindow(now = Date.now()): { start: number; end: number } {
   const date = new Date(now)
@@ -55,8 +56,8 @@ export class PriceService {
     if (wait) await delay(wait)
     const window = historyWindow()
     const url = new URL(`/api/v2/stats/history/${encodeURIComponent(itemId)}.json`, SERVERS[server].priceBaseUrl)
-    url.searchParams.set('locations', 'Brecilien')
-    url.searchParams.set('qualities', String(quality))
+    url.searchParams.set('locations', MARKET_CITIES.join(','))
+    url.searchParams.set('qualities', `1,${quality}`)
     url.searchParams.set('date', new Date(window.start).toISOString().slice(0, 10))
     url.searchParams.set('end_date', new Date(window.end).toISOString().slice(0, 10))
     url.searchParams.set('time-scale', '24')
@@ -66,10 +67,11 @@ export class PriceService {
     if (!response.ok) throw new Error(`AODP history HTTP ${response.status}: ${itemId} Q${quality}`)
     const rows = await response.json() as HistoryRow[]
     if (!Array.isArray(rows)) throw new Error('Invalid market history response')
-    const price = historicalAverage(rows, itemId, quality, window)
+    const selected = selectHistoricalPrice(rows, itemId, window)
+    const price = selected.price
     this.db.saveCachedPrice(server, itemId, price)
     this.diagnostics.log(price ? 'info' : 'warn', 'pricing', price ? 'Historical average calculated' : 'No historical price; item contributes zero', {
-      itemId, quality, price, server, start: window.start, end: window.end
+      itemId, ...selected, server, start: window.start, end: window.end
     })
     return price
   }
@@ -81,11 +83,23 @@ export function collectItems(player: AlbionPlayer): AlbionItem[] {
   return [...equipment, ...inventory].filter((item) => Boolean(item.Type))
 }
 
-export function historicalAverage(rows: HistoryRow[], itemId: string, quality: number, window = historyWindow()): number {
+export function selectHistoricalPrice(rows: HistoryRow[], itemId: string, window = historyWindow()): { price: number; quality: number; source: string } {
+  // Keep the requested Excellent reference where available. Quality-less items
+  // (food, potions, resources) are reported as Normal by AODP.
+  for (const quality of [PRICE_QUALITY, 1]) {
+    const brecilien = historicalAverage(rows, itemId, quality, window)
+    if (brecilien > 0) return { price: brecilien, quality, source: 'Brecilien' }
+    const markets = historicalAverage(rows, itemId, quality, window, MARKET_CITIES)
+    if (markets > 0) return { price: markets, quality, source: 'Regular cities' }
+  }
+  return { price: 0, quality: PRICE_QUALITY, source: 'No history' }
+}
+
+export function historicalAverage(rows: HistoryRow[], itemId: string, quality: number, window = historyWindow(), cities: readonly string[] = ['Brecilien']): number {
   let silver = 0
   let count = 0
   for (const row of rows) {
-    if (row.item_id !== itemId || row.location !== 'Brecilien' || row.quality !== quality) continue
+    if (row.item_id !== itemId || !cities.includes(row.location) || row.quality !== quality) continue
     if (!Array.isArray(row.data)) throw new Error('Invalid market history buckets')
     for (const bucket of row.data) {
       const time = parseUtcTimestamp(bucket.timestamp)

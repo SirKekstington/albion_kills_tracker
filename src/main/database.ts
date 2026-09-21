@@ -78,7 +78,7 @@ export class AppDatabase {
         FOREIGN KEY (profile_id, event_id) REFERENCES events(profile_id, event_id) ON DELETE CASCADE
       );
 
-      CREATE TABLE IF NOT EXISTS brecilien_history_prices_v1 (
+      CREATE TABLE IF NOT EXISTS market_history_prices_v3 (
         server TEXT NOT NULL,
         item_id TEXT NOT NULL,
         quality INTEGER NOT NULL,
@@ -216,11 +216,12 @@ export class AppDatabase {
     return rows.map(mapEventRow)
   }
 
-  // Reuse the indexed, persistent history cache, always at Excellent quality.
+  // One indexed reference price per item/server, independent of worn quality.
+  // V3 separates fallback-aware prices from the old Brecilien-only cache.
   getCachedPrice(server: string, itemId: string, maxAgeMs: number): number | null {
     const row = this.db.prepare(`
       SELECT average_price AS price, fetched_at AS fetchedAt
-      FROM brecilien_history_prices_v1
+      FROM market_history_prices_v3
       WHERE server = ? AND item_id = ? AND quality = ?
     `).get(server, itemId, PRICE_QUALITY) as { price: number; fetchedAt: number } | undefined
 
@@ -230,7 +231,7 @@ export class AppDatabase {
 
   saveCachedPrice(server: string, itemId: string, price: number): void {
     this.db.prepare(`
-      INSERT INTO brecilien_history_prices_v1 (server, item_id, quality, average_price, fetched_at)
+      INSERT INTO market_history_prices_v3 (server, item_id, quality, average_price, fetched_at)
       VALUES (?, ?, ?, ?, ?)
       ON CONFLICT(server, item_id, quality) DO UPDATE SET
         average_price = excluded.average_price,

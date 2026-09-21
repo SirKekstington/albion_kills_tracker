@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { unlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import Database from 'better-sqlite3'
 import { AppDatabase } from '../src/main/database'
 import { StatisticsService } from '../src/main/statistics-service'
 import type { PriceService } from '../src/main/price-service'
@@ -11,8 +12,15 @@ import type { StoredEvent } from '../src/shared/types'
 
 async function main(): Promise<void> {
   const path = join(tmpdir(), `albion-valuation-${randomUUID()}.db`)
+  const legacy = new Database(path)
+  legacy.exec(`CREATE TABLE brecilien_history_prices_v1 (
+    server TEXT, item_id TEXT, quality INTEGER, average_price INTEGER, fetched_at INTEGER
+  )`)
+  legacy.prepare('INSERT INTO brecilien_history_prices_v1 VALUES (?, ?, ?, ?, ?)').run('EUROPE', 'T4_BAG', 4, 0, Date.now())
+  legacy.close()
   let db = new AppDatabase(path)
   try {
+    assert.equal(db.getCachedPrice('EUROPE', 'T4_BAG', 60000), null, 'Legacy zero prices must not prevent new fallback pricing')
     db.saveProfile({ id: 'a', name: 'A', server: 'EUROPE' })
     const settings = db.getSettings()
     assert.equal(settings.language, 'en')

@@ -234,7 +234,7 @@ function Dashboard({ data, onTrackingChanged, onShowFights }: {
     </section>
     <section className="two-column">
       <div className="content-card mini-insight"><div className="insight-icon"><Radio /></div><div><p className="eyebrow">{t("OBS OVERLAY")}</p><h3>{t("Ready for your stream")}</h3><p>{t("Profit and loss update automatically while the app is running.")}</p></div></div>
-      <div className="content-card mini-insight"><div className="insight-icon purple"><CircleDollarSign /></div><div><p className="eyebrow">{t("PRICING")}</p><h3>{t("Brecilien 7-day average")}</h3><p>{t("Volume-weighted average of the last 7 completed days in Brecilien. All items use Excellent quality prices.")}</p></div></div>
+      <div className="content-card mini-insight"><div className="insight-icon purple"><CircleDollarSign /></div><div><p className="eyebrow">{t("PRICING")}</p><h3>{t("7-day market average")}</h3><p>{t("7 completed days, weighted by volume. Prefer Excellent in Brecilien, then other cities; Normal quality if Excellent is unavailable.")}</p></div></div>
     </section>
   </div>
 }
