@@ -1,6 +1,6 @@
 {
   "name": "albion-pvp-tracker",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Local-first Albion Online PvP statistics tracker with an OBS overlay.",
   "main": "./out/main/index.js",
   "author": "https://github.com/SirKekstington",
