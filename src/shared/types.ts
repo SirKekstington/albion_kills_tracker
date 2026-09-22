@@ -121,6 +121,8 @@ export interface CollectorStatus {
 }
 
 export interface AppSettings {
+  eventRetentionDays: number
+  theme: 'dark' | 'light'
   uiScale: number
   language: 'en' | 'de'
   overlayTransparent: boolean
@@ -141,6 +143,7 @@ export interface SaveProfileInput {
 }
 
 export interface AppApi {
+  getFightPage(range: TimeRange, page: number, pageSize: number): Promise<FightPage>
   getDebugSnapshot?(): Promise<DebugSnapshot>
   debugImportEvent?(eventId: string): Promise<boolean>
   setLanguage(language: 'en' | 'de'): Promise<void>
@@ -157,6 +160,14 @@ export interface AppApi {
   saveSettings(settings: AppSettings): Promise<AppSettings>
   getOverlayUrl(): Promise<string>
   openExternal(url: string): Promise<void>
+}
+
+export interface FightPage {
+  fights: FightSummary[]
+  page: number
+  pageSize: number
+  total: number
+  totalPages: number
 }
 
 export interface DebugEntry {

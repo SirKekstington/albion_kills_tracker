@@ -11,6 +11,7 @@ const api: AppApi & { onUpdated(callback: () => void): () => void } = {
   saveProfile: (profile) => ipcRenderer.invoke('profile:save', profile),
   getProfile: () => ipcRenderer.invoke('profile:get'),
   getDashboard: (range) => ipcRenderer.invoke('dashboard:get', range),
+  getFightPage: (range, page, pageSize) => ipcRenderer.invoke('fights:page', range, page, pageSize),
   setProfitTracking: (mode) => ipcRenderer.invoke('tracking:set', mode),
   getFightDetails: (eventId) => ipcRenderer.invoke('fights:details', eventId),
   setFightValuation: (eventId, mode) => ipcRenderer.invoke('fights:valuation', eventId, mode),

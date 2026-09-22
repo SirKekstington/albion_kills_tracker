@@ -28,6 +28,7 @@ import type {
   AppSettings,
   DashboardData,
   FightSummary,
+  FightPage,
   PlayerProfile,
   PlayerSearchResult,
   TimeRange
@@ -64,7 +65,10 @@ export function App(): ReactElement {
   useLanguage()
   const [ready, setReady] = useState(false)
   useEffect(() => {
-    void window.tracker.getSettings().then((settings) => applyLanguage(settings.language)).catch(() => applyLanguage('en')).finally(() => setReady(true))
+    void window.tracker.getSettings().then((settings) => {
+      applyLanguage(settings.language)
+      document.documentElement.dataset.theme = settings.theme
+    }).catch(() => applyLanguage('en')).finally(() => setReady(true))
   }, [])
   return ready ? <TrackerApp /> : <Splash />
 }
@@ -115,7 +119,7 @@ function TrackerApp(): ReactElement {
 
   return (
     <div className="app-shell">
-      <Sidebar view={view} onView={setView} profile={profile} />
+      <Navigation view={view} onView={setView} />
       <main className="main-content">
         <Header
           profile={profile}
@@ -130,7 +134,7 @@ function TrackerApp(): ReactElement {
             onShowFights={() => setView('fights')}
           />
         )}
-        {view === 'fights' && <FightsView data={dashboard} range={range} onRange={setRange} />}
+        {view === 'fights' && <FightsView key={profile.id} range={range} onRange={setRange} />}
         {view === 'statistics' && <StatisticsView data={dashboard} range={range} onRange={setRange} />}
         {view === 'settings' && <SettingsView onProfileChanged={(p) => {
           setProfile(p)
@@ -156,21 +160,17 @@ function RepositoryFooter(): ReactElement {
   }}><Github size={15} aria-hidden="true" /> {t("Albion PvP Tracker on GitHub")}</a></footer>
 }
 
-function Sidebar({ view, onView, profile }: { view: View; onView: (v: View) => void; profile: PlayerProfile }): ReactElement {
+function Navigation({ view, onView }: { view: View; onView: (v: View) => void }): ReactElement {
   const items: Array<{ key: View; label: string; icon: ReactElement }> = [
     { key: 'dashboard', label: t("Dashboard"), icon: <Activity size={19} /> },
     { key: 'fights', label: t("Fights"), icon: <Swords size={19} /> },
     { key: 'statistics', label: t("Statistics"), icon: <BarChart3 size={19} /> },
     { key: 'settings', label: t("Settings"), icon: <Settings size={19} /> }
   ]
-  return <aside className="sidebar">
+  return <header className="app-navigation">
     <div className="brand"><div className="brand-mark"><Crosshair /></div><div><b>ALBION</b><span>PvP Tracker</span></div></div>
-    <nav>{items.map((item) => <button key={item.key} className={view === item.key ? 'active' : ''} onClick={() => onView(item.key)}>{item.icon}<span>{item.label}</span></button>)}</nav>
-    <div className="sidebar-profile">
-      <div className="avatar">{profile.name.slice(0, 2).toUpperCase()}</div>
-      <div><b>{profile.name}</b><span>{serverLabel(profile.server)}</span></div>
-    </div>
-  </aside>
+    <nav aria-label={t('Main navigation')}>{items.map((item) => <button key={item.key} aria-current={view === item.key ? 'page' : undefined} className={view === item.key ? 'active' : ''} onClick={() => onView(item.key)}>{item.icon}<span>{item.label}</span></button>)}</nav>
+  </header>
 }
 
 function Header({ profile, collector, refreshing, onRefresh }: {
@@ -180,9 +180,8 @@ function Header({ profile, collector, refreshing, onRefresh }: {
   onRefresh: () => void
 }): ReactElement {
   return <header className="topbar">
-    <div><p className="eyebrow">{t("WELCOME BACK")}</p><h1>{profile.name}</h1></div>
+    <div className="character-heading"><UserRound size={16} /><h1>{profile.name}</h1><span>{serverLabel(profile.server)}</span></div>
     <div className="header-actions">
-      <LanguageSelect />
       <div className={`status-pill ${collector.lastError ? 'error' : ''}`}>
         {collector.lastError ? <WifiOff size={15} /> : <Wifi size={15} />}
         <span>{collector.lastError ? t("Sync issue") : collector.syncing ? t("Syncing…") : t("Collector online")}</span>
@@ -213,7 +212,7 @@ function Dashboard({ data, onTrackingChanged, onShowFights }: {
     finally { setTrackingBusy(false) }
   }
   return <div className="page">
-    <section className="page-heading"><div><h2>{t("Your PvP overview")}</h2><p>{t('Profit and loss · same period as the OBS overlay')}</p></div></section>
+    <section className="page-heading"><div><h2>{t("Dashboard")}</h2><p>{t('Profit and loss · same period as the OBS overlay')}</p></div></section>
     <section className="profit-tracking">
       <div><b>{data.tracking.mode === 'SESSION' ? t('Session active') : t('Whole day')}</b><p>{data.tracking.mode === 'SESSION' && data.tracking.startedAt !== null ? t('Since {date}', { date: new Date(data.tracking.startedAt).toLocaleString(locale()) }) : t('From today at 00:00 (local time)')}</p></div>
       <div className="tracking-actions"><button className={`secondary-button ${data.tracking.mode === 'TODAY' ? 'selected' : ''}`} disabled={trackingBusy || data.tracking.mode === 'TODAY'} onClick={() => void changeTracking('TODAY')}>{t('Whole day')}</button><button className="primary-button" disabled={trackingBusy} onClick={() => void changeTracking('SESSION')}>{data.tracking.mode === 'SESSION' ? t('New session from now') : t('Track from now')}</button></div>
@@ -230,13 +229,10 @@ function Dashboard({ data, onTrackingChanged, onShowFights }: {
       <StatCard tone="neutral" icon={<Crosshair />} label={t("Fights")} value={`${stats.kills} / ${stats.deaths} / ${stats.assists}`} note={t("Kills · Deaths · Assists")} />
     </section>
     <section className="content-card recent-card">
-      <div className="section-header"><div><p className="eyebrow">{t("LIVE FEED")}</p><h3>{t("Recent fights")}</h3></div><button className="text-button" onClick={onShowFights}>{t("View all")} <ChevronRight size={16} /></button></div>
-      <FightList fights={data.trackingFights.slice(0, 8)} />
+      <div className="section-header"><h3>{t("Recent fights")}</h3><button className="text-button" onClick={onShowFights}>{t("View all")} <ChevronRight size={16} /></button></div>
+      <FightList fights={data.trackingFights.slice(0, 12)} />
     </section>
-    <section className="two-column">
-      <div className="content-card mini-insight"><div className="insight-icon"><Radio /></div><div><p className="eyebrow">{t("OBS OVERLAY")}</p><h3>{t("Ready for your stream")}</h3><p>{t("Profit and loss update automatically while the app is running.")}</p></div></div>
-      <div className="content-card mini-insight"><div className="insight-icon purple"><CircleDollarSign /></div><div><p className="eyebrow">{t("PRICING")}</p><h3>{t("7-day market median")}</h3><p>{t("Median of daily prices over 7 completed days. Prefer Excellent in Brecilien, then other cities; Normal quality if Excellent is unavailable.")}</p></div></div>
-    </section>
+    <details className="pricing-note"><summary>{t("7-day market median")}</summary><p className="detail-note">{t("Median of daily prices over 7 completed days. Prefer Excellent in Brecilien, then other cities; Normal quality if Excellent is unavailable.")}</p></details>
   </div>
 }
 
@@ -247,7 +243,7 @@ function StatCard({ icon, label, value, note, tone }: { icon: ReactElement; labe
 function FightList({ fights }: { fights: FightSummary[] }): ReactElement {
   const [selected, setSelected] = useState<FightSummary | null>(null)
   if (!fights.length) return <div className="empty-state"><Swords size={30} /><h4>{t("No fights collected yet")}</h4><p>{t("Leave the tracker running. Recent kills and deaths are imported automatically.")}</p></div>
-  return <><div className="fight-list">{fights.map((fight) => <button type="button" className="fight-row" key={fight.eventId} onClick={() => setSelected(fight)} aria-label={t('View {type} against {name}', {type: t(fight.type), name: fight.opponentName})} aria-haspopup="dialog">
+  return <><div className="fight-list"><div className="fight-columns" aria-hidden="true"><span /><span>{t('Opponent / weapons')}</span><span className="fight-fame">{t('Kill fame')}</span><span>{t('Silver')}</span><span>{t('Time')}</span></div>{fights.map((fight) => <button type="button" className="fight-row" key={fight.eventId} onClick={() => setSelected(fight)} aria-label={t('View {type} against {name}', {type: t(fight.type), name: fight.opponentName})} aria-haspopup="dialog">
     <div className={`fight-type ${fight.type.toLowerCase()}`}>{fight.type === 'KILL' ? <Swords /> : fight.type === 'ASSIST' ? <UsersRound /> : <Skull />}</div>
     <div className="fight-identity"><div className="fight-weapons"><FightWeapon item={fight.playerWeapon} label={t("Your weapon")} /><span className="weapon-versus" aria-hidden="true">/</span><FightWeapon item={fight.opponentWeapon} label={t('Weapon of {name}', {name: fight.opponentName})} /></div><div className="fight-main"><b>{t(fight.type)}{fight.valuationMode === 'NONE' ? t(" · NO LOSS") : fight.valuationMode === 'INVENTORY' ? t(" · INVENTORY ONLY") : ''}</b><span>{fight.opponentName}</span></div></div>
     <div className="fight-fame"><span>{t("Kill fame")}</span><b>{fight.killFame.toLocaleString(locale())}</b></div>
@@ -256,8 +252,50 @@ function FightList({ fights }: { fights: FightSummary[] }): ReactElement {
   </button>)}</div>{selected && <FightDetailsDialog key={selected.eventId} fight={selected} onClose={() => setSelected(null)} />}</>
 }
 
-function FightsView({ data, range, onRange }: { data: DashboardData; range: TimeRange; onRange: (r: TimeRange) => void }): ReactElement {
-  return <div className="page"><section className="page-heading"><div><h2>{t("Fight history")}</h2><p>{t("Your locally collected kills, assists and deaths.")}</p></div><RangeTabs value={range} onChange={onRange} /></section><section className="content-card"><FightList fights={data.recentFights} /></section></div>
+function FightsView({ range, onRange }: { range: TimeRange; onRange: (r: TimeRange) => void }): ReactElement {
+  const [page, setPage] = useState(1)
+  const [pageInput, setPageInput] = useState('1')
+  useEffect(() => { setPageInput(String(page)) }, [page])
+  const [pageSize, setPageSize] = useState(10)
+  const [result, setResult] = useState<FightPage | null>(null)
+  const [error, setError] = useState(false)
+  const [attempt, setAttempt] = useState(0)
+  useEffect(() => {
+    let active = true
+    let request = 0
+    setResult(null)
+    const load = async (): Promise<void> => {
+      const current = ++request
+      try {
+        const next = await window.tracker.getFightPage(range, page, pageSize)
+        if (active && current === request) { setResult(next); setPage(next.page); setError(false) }
+      } catch { if (active && current === request) setError(true) }
+    }
+    void load()
+    const unsubscribe = window.tracker.onUpdated(() => void load())
+    return () => { active = false; unsubscribe() }
+  }, [range, page, pageSize, attempt])
+  return <div className="page"><section className="page-heading"><div><h2>{t("Fight history")}</h2><p>{t("Your locally collected kills, assists and deaths.")}</p></div><RangeTabs value={range} onChange={(value) => { setPage(1); onRange(value) }} /></section>
+    {error && <p className="alert" role="alert">{t('Could not load events.')} <button className="secondary-button" onClick={() => setAttempt(attempt + 1)}>{t('Try again')}</button></p>}
+    <section className="content-card">
+      <div className="pagination">
+        <label>{t('Events per page')} <select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}>{[10, 15, 20].map((size) => <option key={size} value={size}>{size}</option>)}</select></label>
+        <span aria-live="polite">{result ? t('Page {page} of {pages} · {total} events', { page: result.page, pages: result.totalPages, total: result.total }) : t('Loading events…')}</span>
+        <form className="page-jump" onSubmit={(event) => {
+          event.preventDefault()
+          const requestedPage = Number(pageInput)
+          if (!result || !Number.isSafeInteger(requestedPage) || requestedPage < 1 || requestedPage > result.totalPages) return
+          setPage(requestedPage)
+          setPageInput(String(requestedPage))
+        }}>
+          <label>{t('Go to page')}<input type="number" min={1} max={result?.totalPages ?? 1} step={1} required value={pageInput} disabled={!result || result.total === 0} onChange={(event) => setPageInput(event.target.value)} /></label>
+          <button type="submit" className="secondary-button" disabled={!result || result.total === 0}>{t('Go')}</button>
+        </form>
+        <div><button className="secondary-button" disabled={!result || result.page <= 1} onClick={() => setPage(result!.page - 1)}>{t('Previous')}</button><button className="secondary-button" disabled={!result || result.page >= result.totalPages} onClick={() => setPage(result!.page + 1)}>{t('Next')}</button></div>
+      </div>
+      {result && <FightList fights={result.fights} />}
+    </section>
+  </div>
 }
 
 function StatisticsView({ data, range, onRange }: { data: DashboardData; range: TimeRange; onRange: (r: TimeRange) => void }): ReactElement {
@@ -288,6 +326,7 @@ function SettingsView({ onProfileChanged }: { onProfileChanged: (p: PlayerProfil
     setSaving(true); setSaveError('')
     try {
       const result = await window.tracker.saveSettings(settings)
+      document.documentElement.dataset.theme = result.theme
       setSettings(result)
       setOverlayUrl(await window.tracker.getOverlayUrl())
       setSaved(true)
@@ -299,24 +338,35 @@ function SettingsView({ onProfileChanged }: { onProfileChanged: (p: PlayerProfil
   return <div className="page settings-page"><section className="page-heading"><div><h2>{t("Settings")}</h2><p>{t("Appearance, collector, Windows startup and streaming integration.")}</p></div></section>
     <section className="content-card settings-card">
       <div className="settings-title"><div className="insight-icon purple"><Monitor /></div><div><h3>{t("Appearance")}</h3><p>{t("Enlarge text, icons and controls for high-resolution displays.")}</p></div></div>
+      <label className="theme-field">{t('Theme')}<select value={settings.theme} onChange={(e) => { setSettings({ ...settings, theme: e.target.value as AppSettings['theme'] }); setSaved(false) }}>
+        <option value="dark">{t('Dark mode')}</option><option value="light">{t('Light mode')}</option>
+      </select></label>
       <label>{t("UI scale")}<select value={settings.uiScale} onChange={(e) => { setSettings({ ...settings, uiScale: Number(e.target.value) }); setSaved(false) }}>
         {[1, 1.25, 1.5, 1.75, 2].map((scale) => <option key={scale} value={scale}>{Math.round(scale * 100)}%</option>)}
       </select></label>
+      <LanguageSelect />
       <p className="detail-note">{t("Applied when you save and remembered after restart. The OBS overlay keeps its own size.")}</p>
     </section>
     <section className="content-card settings-card"><div className="settings-title"><div className="insight-icon"><Radio /></div><div><h3>{t("OBS browser source")}</h3><p>{t("Only available on this computer via 127.0.0.1.")}</p></div></div>
       <Toggle label={t("Enable overlay server")} checked={settings.overlayEnabled} onChange={(v) => setSettings({ ...settings, overlayEnabled: v })} />
       <div className="field-row"><label>{t("Port")}<input type="number" min="1024" max="65535" value={settings.overlayPort} onChange={(e) => setSettings({ ...settings, overlayPort: Number(e.target.value) })} /></label><label className="url-field">{t("OBS URL")}<div><input readOnly value={overlayUrl} /><button onClick={() => void copy()} title={t("Copy URL")}><Clipboard size={17} /></button></div></label></div>
-      <OverlayEditor settings={settings} onChange={setSettings} />
+      <details className="overlay-options"><summary>{t('Overlay appearance and preview')}</summary><OverlayEditor settings={settings} onChange={setSettings} /></details>
     </section>
     <section className="content-card settings-card"><div className="settings-title"><div className="insight-icon purple"><Settings /></div><div><h3>{t("Collector")}</h3><p>{t("How frequently the public event endpoints are checked.")}</p></div></div><label>{t("Refresh interval")}<select value={settings.refreshSeconds} onChange={(e) => setSettings({ ...settings, refreshSeconds: Number(e.target.value) })}><option value="10">{t("10 seconds")}</option><option value="20">{t("20 seconds")}</option><option value="30">{t("30 seconds")}</option><option value="60">{t("60 seconds")}</option></select></label><Toggle label={t("Launch with Windows")} checked={settings.launchAtStartup} onChange={(v) => setSettings({ ...settings, launchAtStartup: v })} /></section>
+    <section className="content-card settings-card">
+      <div className="settings-title"><div><h3>{t('Event storage')}</h3><p>{t('Automatically remove old events from all characters.')}</p></div></div>
+      <label>{t('Delete events older than')}<select value={settings.eventRetentionDays} onChange={(event) => { setSettings({ ...settings, eventRetentionDays: Number(event.target.value) }); setSaved(false) }}>
+        <option value={0}>{t('Never')}</option>{[7, 30, 90, 180, 365].map((days) => <option key={days} value={days}>{t('{days} days', { days })}</option>)}
+      </select></label>
+      <p className="detail-note">{t('Saving applies deletion immediately, then at startup and hourly. Deleted events and their valuations cannot be restored and no longer count in statistics. Item images and cached prices are kept.')}</p>
+    </section>
     {saveError && <p role="alert" className="alert">{t(saveError)}</p>}
     <section className="settings-actions"><button className="secondary-button" onClick={() => setEditingProfile(true)}><UserRound size={17} /> {t("Change character")}</button><button className="primary-button" disabled={saving} onClick={() => void save()}>{saved ? <Check size={18} /> : null}{saving ? t("Saving…") : saved ? t("Saved") : t("Save settings")}</button></section>
   </div>
 }
 
 function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }): ReactElement {
-  return <label className="toggle-row"><span>{label}</span><button type="button" className={`toggle ${checked ? 'on' : ''}`} onClick={() => onChange(!checked)}><span /></button></label>
+  return <label className="toggle-row"><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} /><span>{label}</span></label>
 }
 
 function Onboarding({ onComplete, compact = false }: { onComplete: (p: PlayerProfile) => void; compact?: boolean }): ReactElement {

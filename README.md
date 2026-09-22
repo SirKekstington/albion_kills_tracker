@@ -132,3 +132,9 @@ MIT
 Under **Settings → Appearance → UI scale**, select 100%, 125%, 150%, 175% or 200% and save. Text, icons and controls scale together; the setting survives restarts. The OBS overlay keeps its own size.
 
 Item images for weapon icons, equipment and inventory are stored permanently in the app user-data folder under `item-images`. Previously downloaded images also work offline after restart. Failed downloads can be retried. Prices and completed fight valuations remain in `tracker.db` and are reused without automatic expiry or startup recalculation; newly encountered items still require a market request.
+
+## Event history and retention
+
+**Fights** supports database-backed pagination with 10, 15 or 20 events per page. Date filters apply to the entire history; changing the filter or page size returns to page one.
+
+Under **Settings → Event storage**, choose **Never** (default) or delete events older than 7, 30, 90, 180 or 365 days. Saving applies the rule immediately to all characters, and cleanup runs again at startup and hourly. Age is measured from the fight timestamp. Deleted events and their manual valuations are permanently removed from statistics. Expired events are not reimported while the rule is active. Cleanup compacts the database to release disk space; item images and cached market prices are retained.

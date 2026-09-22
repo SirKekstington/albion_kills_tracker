@@ -1,6 +1,7 @@
 import type {
   AlbionEvent,
   FightDetails,
+  FightPage,
   DashboardData,
   DashboardStats,
   FightSummary,
@@ -15,6 +16,15 @@ import type { PriceService } from './price-service'
 
 export class StatisticsService {
   constructor(private readonly db: AppDatabase) {}
+
+  getFightPage(range: TimeRange, requestedPage: number, pageSize: number): FightPage {
+    const profile = this.db.getActiveProfile()
+    const total = profile ? this.db.countEvents(profile.id, range) : 0
+    const totalPages = Math.max(1, Math.ceil(total / pageSize))
+    const page = Math.min(Math.max(1, requestedPage), totalPages)
+    return { total, totalPages, page, pageSize,
+      fights: profile ? this.db.listEvents(profile.id, range, pageSize, undefined, (page - 1) * pageSize).map(toFightSummary) : [] }
+  }
 
   async setFightValuation(eventId: string, mode: ValuationMode, prices: PriceService): Promise<FightDetails> {
     const profile = this.db.getActiveProfile()

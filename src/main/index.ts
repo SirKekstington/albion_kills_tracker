@@ -20,11 +20,14 @@ let api: AlbionApi
 let statistics: StatisticsService
 let itemImages: ItemImageCache
 let prices: PriceService
+let retentionTimer: NodeJS.Timeout | undefined
 const diagnostics = new Diagnostics(!app.isPackaged)
 
 const serverSchema = z.enum(['EUROPE', 'AMERICAS', 'ASIA'])
 const rangeSchema = z.enum(['TODAY', '7D', '30D', 'ALL'])
 const settingsSchema = z.object({
+  eventRetentionDays: z.union([z.literal(0), z.literal(7), z.literal(30), z.literal(90), z.literal(180), z.literal(365)]).default(0),
+  theme: z.enum(['dark', 'light']).default('dark'),
   uiScale: z.number().min(1).max(2).default(1),
   overlayTransparent: z.boolean().default(false),
   overlayCustomEnabled: z.boolean().default(false),
@@ -48,7 +51,7 @@ function createWindow(): void {
     height: 840,
     minWidth: 980,
     minHeight: 680,
-    backgroundColor: '#090b11',
+    backgroundColor: db.getSettings().theme === 'light' ? '#f3f3f3' : '#202020',
     title: 'Albion PvP Tracker',
     show: false,
     webPreferences: {
@@ -88,6 +91,9 @@ async function applyOverlaySettings(settings: AppSettings): Promise<void> {
 }
 
 function registerIpc(): void {
+  ipcMain.handle('fights:page', (_event, range: unknown, page: unknown, pageSize: unknown) =>
+    statistics.getFightPage(rangeSchema.parse(range), z.number().int().min(1).max(100000000).parse(page),
+      z.union([z.literal(10), z.literal(15), z.literal(20)]).parse(pageSize)))
   if (!app.isPackaged) {
     ipcMain.handle('debug:snapshot', () => {
       const profile = db.getActiveProfile()
@@ -151,7 +157,9 @@ function registerIpc(): void {
   ipcMain.handle('settings:save', async (_event, input: unknown) => {
     const settings = { ...settingsSchema.parse(input), language: db.getSettings().language }
     db.saveSettings(settings)
+    db.pruneEvents()
     mainWindow?.webContents.setZoomFactor(settings.uiScale)
+    mainWindow?.setBackgroundColor(settings.theme === 'light' ? '#f3f3f3' : '#202020')
     app.setLoginItemSettings({ openAtLogin: settings.launchAtStartup })
     await applyOverlaySettings(settings)
     collector.restart()
@@ -169,6 +177,11 @@ function registerIpc(): void {
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null)
   db = new AppDatabase(join(app.getPath('userData'), 'tracker.db'))
+  db.pruneEvents()
+  retentionTimer = setInterval(() => {
+    try { if (db.pruneEvents() > 0) notifyRenderer() }
+    catch (error) { console.error('Could not remove expired events:', error) }
+  }, 60 * 60 * 1000)
   api = new AlbionApi(diagnostics)
   itemImages = new ItemImageCache(join(app.getPath('userData'), 'item-images'))
   prices = new PriceService(db, diagnostics)
@@ -196,6 +209,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  if (retentionTimer) clearInterval(retentionTimer)
   collector?.stop()
   void overlay?.stop()
   db?.close()

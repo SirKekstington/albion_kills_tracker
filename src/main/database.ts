@@ -67,6 +67,7 @@ export class AppDatabase {
 
       CREATE INDEX IF NOT EXISTS idx_events_profile_time
         ON events(profile_id, event_timestamp DESC);
+      CREATE INDEX IF NOT EXISTS idx_events_retention_time ON events(event_timestamp);
 
       CREATE TABLE IF NOT EXISTS event_valuations (
         profile_id TEXT NOT NULL,
@@ -127,6 +128,8 @@ export class AppDatabase {
   }
 
   insertEvent(event: StoredEvent): boolean {
+    const days = this.getSettings().eventRetentionDays
+    if (days > 0 && event.timestamp < Date.now() - days * 86400000) return false
     const result = this.db.prepare(`
       INSERT OR IGNORE INTO events (
         profile_id, event_id, event_timestamp, event_type, killer_name,
@@ -199,21 +202,41 @@ export class AppDatabase {
       .run(profileId, mode, mode === 'SESSION' ? Date.now() : null)
   }
 
-  listEvents(profileId: string, range: TimeRange, limit?: number, since?: number): StoredEvent[] {
+  listEvents(profileId: string, range: TimeRange, limit?: number, since?: number, offset = 0): StoredEvent[] {
     const start = since ?? getRangeStart(range)
     const conditions = ['e.profile_id = @profileId']
     if (start !== null) conditions.push('event_timestamp >= @start')
-    const limitClause = limit ? 'LIMIT @limit' : ''
+    const limitClause = limit ? 'LIMIT @limit OFFSET @offset' : ''
 
     const rows = this.db.prepare(`
       SELECT e.*, v.valuation_mode, v.adjusted_value, v.valuation_timestamp FROM events e
       LEFT JOIN event_valuations v USING (profile_id, event_id)
       WHERE ${conditions.join(' AND ')}
-      ORDER BY event_timestamp DESC
+      ORDER BY event_timestamp DESC, e.event_id DESC
       ${limitClause}
-    `).all({ profileId, start: start ?? 0, limit: limit ?? -1 }) as EventRow[]
+    `).all({ profileId, start: start ?? 0, limit: limit ?? -1, offset }) as EventRow[]
 
     return rows.map(mapEventRow)
+  }
+
+  countEvents(profileId: string, range: TimeRange): number {
+    const start = getRangeStart(range)
+    return (this.db.prepare(`SELECT COUNT(*) AS count FROM events
+      WHERE profile_id = ? ${start === null ? '' : 'AND event_timestamp >= ?'}`)
+      .get(...(start === null ? [profileId] : [profileId, start])) as { count: number }).count
+  }
+
+  pruneEvents(now = Date.now()): number {
+    const days = this.getSettings().eventRetentionDays
+    if (days === 0) return 0
+    // Foreign-key cascades also remove the corresponding manual valuations.
+    const result = this.db.prepare('DELETE FROM events WHERE event_timestamp < ?').run(now - days * 86400000)
+    if (result.changes > 0) {
+      // Return unused database pages to disk, rather than only marking them reusable.
+      this.db.exec('VACUUM')
+      this.db.pragma('wal_checkpoint(TRUNCATE)')
+    }
+    return result.changes
   }
 
   // One indexed reference price per item/server, independent of worn quality.
@@ -242,6 +265,8 @@ export class AppDatabase {
     const rows = this.db.prepare('SELECT key, value FROM settings').all() as Array<{ key: string; value: string }>
     const values = Object.fromEntries(rows.map((row) => [row.key, JSON.parse(row.value)]))
     return {
+      eventRetentionDays: [0, 7, 30, 90, 180, 365].includes(values.eventRetentionDays) ? values.eventRetentionDays : 0,
+      theme: values.theme === 'light' ? 'light' : 'dark',
       uiScale: typeof values.uiScale === 'number' && Number.isFinite(values.uiScale) && values.uiScale >= 1 && values.uiScale <= 2 ? values.uiScale : 1,
       language: values.language === 'de' ? 'de' : 'en',
       overlayTransparent: typeof values.overlayTransparent === 'boolean' ? values.overlayTransparent : DEFAULT_OVERLAY_APPEARANCE.overlayTransparent,
