@@ -121,6 +121,7 @@ export interface CollectorStatus {
 }
 
 export interface AppSettings {
+  uiScale: number
   language: 'en' | 'de'
   overlayTransparent: boolean
   overlayCustomEnabled: boolean

@@ -1,5 +1,10 @@
 export type Language = 'en' | 'de'
 export const german: Record<string, string> = {
+  'Appearance, collector, Windows startup and streaming integration.': 'Darstellung, Erfassung, Windows-Autostart und Streaming-Integration.',
+  'Appearance': 'Darstellung',
+  'UI scale': 'UI-Skalierung',
+  'Enlarge text, icons and controls for high-resolution displays.': 'Text, Symbole und Bedienelemente für hochauflösende Bildschirme vergrößern.',
+  'Applied when you save and remembered after restart. The OBS overlay keeps its own size.': 'Wird beim Speichern angewendet und bleibt nach einem Neustart erhalten. Das OBS-Overlay behält seine eigene Größe.',
   'Sessions use the fight time, not the import time. Earlier fights remain in Whole day. Assists do not increase net profit.': 'Sitzungen zählen nach Kampfzeit, nicht nach Importzeit. Frühere Kämpfe bleiben unter Ganzer Tag sichtbar. Assists erhöhen den Nettogewinn nicht.',
   'Developer diagnostics': 'Entwicklerdiagnose',
   'Latest 500 entries from this run. Copy diagnostics before restarting.': 'Letzte 500 Einträge dieses App-Laufs. Diagnose vor einem Neustart kopieren.',
@@ -29,8 +34,8 @@ export const german: Record<string, string> = {
   'LIVE FEED': 'AKTUELLE KÄMPFE', 'Recent fights': 'Letzte Kämpfe', 'View all': 'Alle anzeigen',
   'OBS OVERLAY': 'OBS-OVERLAY', 'Ready for your stream': 'Bereit für deinen Stream',
   'Profit and loss update automatically while the app is running.': 'Gewinn und Verlust aktualisieren sich automatisch, solange die App läuft.',
-  'PRICING': 'BEWERTUNG', '7-day market average': '7-Tage-Marktdurchschnitt',
-  '7 completed days, weighted by volume. Prefer Excellent in Brecilien, then other cities; Normal quality if Excellent is unavailable.': '7 abgeschlossene Tage, nach Menge gewichtet. Bevorzugt Exzellent in Brecilien, danach andere Städte; Normalqualität, wenn Exzellent fehlt.',
+  'PRICING': 'BEWERTUNG', '7-day market median': '7-Tage-Marktmedian',
+  'Median of daily prices over 7 completed days. Prefer Excellent in Brecilien, then other cities; Normal quality if Excellent is unavailable.': 'Median der Tagespreise aus 7 abgeschlossenen Tagen. Bevorzugt Exzellent in Brecilien, danach andere Städte; Normalqualität, wenn Exzellent fehlt.',
   'No fights collected yet': 'Noch keine Kämpfe erfasst',
   'Leave the tracker running. Recent kills and deaths are imported automatically.': 'Lass den Tracker laufen. Neue Kills und Tode werden automatisch importiert.',
   'View {type} against {name}': '{type} gegen {name} anzeigen', 'Your weapon': 'Deine Waffe', 'Weapon of {name}': 'Waffe von {name}',

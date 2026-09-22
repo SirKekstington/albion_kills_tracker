@@ -216,3 +216,13 @@ button.fight-row:focus-visible { outline: 2px solid var(--purple); outline-offse
 @media (max-width: 760px) { .overlay-code-fields { grid-template-columns: 1fr; } }
 @media (max-width: 1000px) { .fight-comparison { grid-template-columns: minmax(0, 1fr) 140px minmax(0, 1fr); gap: 12px; padding: 16px; } .equipment-board { gap: 8px; } }
 @media (max-width: 650px) { .fight-comparison { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); padding: 12px; } .fight-versus { grid-column: 1 / -1; grid-row: 1; flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 16px; } .versus-stat { margin: 0; } .fight-outcome { font-size: 18px; } }
+
+/* Keep settings and navigation usable even at 200% in a small window. */
+.sidebar { overflow-y: auto; }
+.field-row > label, .url-field input { min-width: 0; }
+@media (max-width: 650px) {
+  .field-row { grid-template-columns: minmax(0, 1fr); }
+  .topbar { height: auto; min-height: 92px; padding-block: 16px; flex-wrap: wrap; gap: 12px; }
+  .settings-actions, .tracking-actions { flex-wrap: wrap; gap: 10px; }
+  .settings-title { align-items: flex-start; }
+}

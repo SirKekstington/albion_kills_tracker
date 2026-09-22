@@ -128,7 +128,7 @@ export class EventCollector {
       for (const [key, until] of this.retries) if (until <= Date.now()) this.retries.delete(key)
       const prefix = profile.id + ':'
       const excluded = [...this.retries.keys()].filter((key) => key.startsWith(prefix)).map((key) => key.slice(prefix.length))
-      for (const stored of this.db.listLegacyPricedEvents(profile.id, excluded)) {
+      for (const stored of this.db.listPendingPricedEvents(profile.id, excluded)) {
         if (generation !== this.generation) break
         try {
           const raw = JSON.parse(stored.rawJson) as AlbionEvent

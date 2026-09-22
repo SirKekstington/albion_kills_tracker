@@ -25,6 +25,7 @@ const diagnostics = new Diagnostics(!app.isPackaged)
 const serverSchema = z.enum(['EUROPE', 'AMERICAS', 'ASIA'])
 const rangeSchema = z.enum(['TODAY', '7D', '30D', 'ALL'])
 const settingsSchema = z.object({
+  uiScale: z.number().min(1).max(2).default(1),
   overlayTransparent: z.boolean().default(false),
   overlayCustomEnabled: z.boolean().default(false),
   overlayHtml: z.string().max(100_000).default(DEFAULT_OVERLAY_APPEARANCE.overlayHtml),
@@ -51,6 +52,7 @@ function createWindow(): void {
     title: 'Albion PvP Tracker',
     show: false,
     webPreferences: {
+      zoomFactor: db.getSettings().uiScale,
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       sandbox: true,
@@ -60,6 +62,9 @@ function createWindow(): void {
     }
   })
   mainWindow.setMenu(null)
+  mainWindow.webContents.on('did-finish-load', () => {
+    mainWindow?.webContents.setZoomFactor(db.getSettings().uiScale)
+  })
   mainWindow.once('ready-to-show', () => mainWindow?.show())
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https://')) void shell.openExternal(url)
@@ -146,6 +151,7 @@ function registerIpc(): void {
   ipcMain.handle('settings:save', async (_event, input: unknown) => {
     const settings = { ...settingsSchema.parse(input), language: db.getSettings().language }
     db.saveSettings(settings)
+    mainWindow?.webContents.setZoomFactor(settings.uiScale)
     app.setLoginItemSettings({ openAtLogin: settings.launchAtStartup })
     await applyOverlaySettings(settings)
     collector.restart()

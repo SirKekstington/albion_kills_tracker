@@ -21,7 +21,7 @@ function setup(events: AlbionEvent[], calculate: PriceService['calculateVictimVa
     getActiveProfile: () => ({ id: playerId, name: 'MrKekstein', server: 'EUROPE' }),
     getProfitTracking: () => ({ mode: 'SESSION', startedAt: 1789999636761 }),
     insertEvent: (event: StoredEvent) => { if (stored.has(event.eventId)) return false; stored.set(event.eventId, event); return true },
-    listLegacyPricedEvents: (_: string, excluded: string[] = []) => [...stored.values()].filter((event) => event.pricingMethod !== PRICING_METHOD && !excluded.includes(event.eventId)),
+    listPendingPricedEvents: (_: string, excluded: string[] = []) => [...stored.values()].filter((event) => event.pricingMethod === 'PENDING' && !excluded.includes(event.eventId)),
     updateEventPrices: (_: string, id: string, value: number) => { stored.set(id, { ...stored.get(id)!, estimatedValue: value, pricingMethod: PRICING_METHOD }) }
   } as unknown as AppDatabase
   const api = { getRecentGlobalEvents: async () => events, getRecentPlayerEvents: async () => [] } as unknown as AlbionApi

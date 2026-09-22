@@ -13,7 +13,6 @@ export interface HistoryRow {
   data: Array<{ item_count: number; avg_price: number; timestamp: string }>
 }
 const DAY_MS = 86400000
-const PRICE_CACHE_MS = 60 * 60 * 1000
 const MARKET_CITIES = ['Brecilien', 'Bridgewatch', 'Caerleon', 'Fort Sterling', 'Lymhurst', 'Martlock', 'Thetford']
 
 export function historyWindow(now = Date.now()): { start: number; end: number } {
@@ -31,13 +30,13 @@ export class PriceService {
     if (!victim) return 0
     let total = 0
     for (const item of collectItems(victim)) {
-      const price = await this.getAveragePrice(server, item.Type!)
+      const price = await this.getMedianPrice(server, item.Type!)
       total += price * Math.max(1, item.Count ?? 1)
     }
     return Math.round(total)
   }
 
-  getAveragePrice(server: AlbionServer, itemId: string): Promise<number> {
+  getMedianPrice(server: AlbionServer, itemId: string): Promise<number> {
     const key = `${server}:${itemId}`
     const existing = this.pending.get(key)
     if (existing) return existing
@@ -48,7 +47,7 @@ export class PriceService {
 
   private async loadPrice(server: AlbionServer, itemId: string): Promise<number> {
     const quality = PRICE_QUALITY
-    const cached = this.db.getCachedPrice(server, itemId, PRICE_CACHE_MS)
+    const cached = this.db.getCachedPrice(server, itemId)
     if (cached !== null) return cached
     // Stay below the market API's 300 requests / 5 minute limit, including simultaneous callers.
     const wait = Math.max(0, this.nextRequestAt - Date.now())
@@ -70,7 +69,7 @@ export class PriceService {
     const selected = selectHistoricalPrice(rows, itemId, window)
     const price = selected.price
     this.db.saveCachedPrice(server, itemId, price)
-    this.diagnostics.log(price ? 'info' : 'warn', 'pricing', price ? 'Historical average calculated' : 'No historical price; item contributes zero', {
+    this.diagnostics.log(price ? 'info' : 'warn', 'pricing', price ? 'Historical median calculated' : 'No historical price; item contributes zero', {
       itemId, ...selected, server, start: window.start, end: window.end
     })
     return price
@@ -87,17 +86,16 @@ export function selectHistoricalPrice(rows: HistoryRow[], itemId: string, window
   // Keep the requested Excellent reference where available. Quality-less items
   // (food, potions, resources) are reported as Normal by AODP.
   for (const quality of [PRICE_QUALITY, 1]) {
-    const brecilien = historicalAverage(rows, itemId, quality, window)
+    const brecilien = historicalMedian(rows, itemId, quality, window)
     if (brecilien > 0) return { price: brecilien, quality, source: 'Brecilien' }
-    const markets = historicalAverage(rows, itemId, quality, window, MARKET_CITIES)
+    const markets = historicalMedian(rows, itemId, quality, window, MARKET_CITIES)
     if (markets > 0) return { price: markets, quality, source: 'Regular cities' }
   }
   return { price: 0, quality: PRICE_QUALITY, source: 'No history' }
 }
 
-export function historicalAverage(rows: HistoryRow[], itemId: string, quality: number, window = historyWindow(), cities: readonly string[] = ['Brecilien']): number {
-  let silver = 0
-  let count = 0
+export function historicalMedian(rows: HistoryRow[], itemId: string, quality: number, window = historyWindow(), cities: readonly string[] = ['Brecilien']): number {
+  const prices: number[] = []
   for (const row of rows) {
     if (row.item_id !== itemId || !cities.includes(row.location) || row.quality !== quality) continue
     if (!Array.isArray(row.data)) throw new Error('Invalid market history buckets')
@@ -105,9 +103,11 @@ export function historicalAverage(rows: HistoryRow[], itemId: string, quality: n
       const time = parseUtcTimestamp(bucket.timestamp)
       if (time < window.start || time >= window.end || !Number.isFinite(time)) continue
       if (!Number.isFinite(bucket.avg_price) || bucket.avg_price <= 0 || !Number.isFinite(bucket.item_count) || bucket.item_count <= 0) continue
-      silver += bucket.avg_price * bucket.item_count
-      count += bucket.item_count
+      prices.push(bucket.avg_price)
     }
   }
-  return count ? Math.round(silver / count) : 0
+  if (!prices.length) return 0
+  prices.sort((a, b) => a - b)
+  const middle = Math.floor(prices.length / 2)
+  return Math.round(prices.length % 2 ? prices[middle] : (prices[middle - 1] + prices[middle]) / 2)
 }

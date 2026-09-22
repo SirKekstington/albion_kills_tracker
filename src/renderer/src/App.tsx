@@ -10,6 +10,7 @@ import {
   Crosshair,
   Github,
   LoaderCircle,
+  Monitor,
   Radio,
   RefreshCw,
   Search,
@@ -234,7 +235,7 @@ function Dashboard({ data, onTrackingChanged, onShowFights }: {
     </section>
     <section className="two-column">
       <div className="content-card mini-insight"><div className="insight-icon"><Radio /></div><div><p className="eyebrow">{t("OBS OVERLAY")}</p><h3>{t("Ready for your stream")}</h3><p>{t("Profit and loss update automatically while the app is running.")}</p></div></div>
-      <div className="content-card mini-insight"><div className="insight-icon purple"><CircleDollarSign /></div><div><p className="eyebrow">{t("PRICING")}</p><h3>{t("7-day market average")}</h3><p>{t("7 completed days, weighted by volume. Prefer Excellent in Brecilien, then other cities; Normal quality if Excellent is unavailable.")}</p></div></div>
+      <div className="content-card mini-insight"><div className="insight-icon purple"><CircleDollarSign /></div><div><p className="eyebrow">{t("PRICING")}</p><h3>{t("7-day market median")}</h3><p>{t("Median of daily prices over 7 completed days. Prefer Excellent in Brecilien, then other cities; Normal quality if Excellent is unavailable.")}</p></div></div>
     </section>
   </div>
 }
@@ -295,7 +296,14 @@ function SettingsView({ onProfileChanged }: { onProfileChanged: (p: PlayerProfil
     finally { setSaving(false) }
   }
   const copy = async (): Promise<void> => { await navigator.clipboard.writeText(overlayUrl); setSaved(true); setTimeout(() => setSaved(false), 1800) }
-  return <div className="page settings-page"><section className="page-heading"><div><h2>{t("Settings")}</h2><p>{t("Collector, Windows startup and streaming integration.")}</p></div></section>
+  return <div className="page settings-page"><section className="page-heading"><div><h2>{t("Settings")}</h2><p>{t("Appearance, collector, Windows startup and streaming integration.")}</p></div></section>
+    <section className="content-card settings-card">
+      <div className="settings-title"><div className="insight-icon purple"><Monitor /></div><div><h3>{t("Appearance")}</h3><p>{t("Enlarge text, icons and controls for high-resolution displays.")}</p></div></div>
+      <label>{t("UI scale")}<select value={settings.uiScale} onChange={(e) => { setSettings({ ...settings, uiScale: Number(e.target.value) }); setSaved(false) }}>
+        {[1, 1.25, 1.5, 1.75, 2].map((scale) => <option key={scale} value={scale}>{Math.round(scale * 100)}%</option>)}
+      </select></label>
+      <p className="detail-note">{t("Applied when you save and remembered after restart. The OBS overlay keeps its own size.")}</p>
+    </section>
     <section className="content-card settings-card"><div className="settings-title"><div className="insight-icon"><Radio /></div><div><h3>{t("OBS browser source")}</h3><p>{t("Only available on this computer via 127.0.0.1.")}</p></div></div>
       <Toggle label={t("Enable overlay server")} checked={settings.overlayEnabled} onChange={(v) => setSettings({ ...settings, overlayEnabled: v })} />
       <div className="field-row"><label>{t("Port")}<input type="number" min="1024" max="65535" value={settings.overlayPort} onChange={(e) => setSettings({ ...settings, overlayPort: Number(e.target.value) })} /></label><label className="url-field">{t("OBS URL")}<div><input readOnly value={overlayUrl} /><button onClick={() => void copy()} title={t("Copy URL")}><Clipboard size={17} /></button></div></label></div>

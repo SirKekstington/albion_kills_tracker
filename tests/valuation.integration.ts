@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import Database from 'better-sqlite3'
 import { AppDatabase } from '../src/main/database'
 import { StatisticsService } from '../src/main/statistics-service'
-import type { PriceService } from '../src/main/price-service'
+import { PriceService } from '../src/main/price-service'
 import type { StoredEvent } from '../src/shared/types'
 
 async function main(): Promise<void> {
@@ -20,12 +20,13 @@ async function main(): Promise<void> {
   legacy.close()
   let db = new AppDatabase(path)
   try {
-    assert.equal(db.getCachedPrice('EUROPE', 'T4_BAG', 60000), null, 'Legacy zero prices must not prevent new fallback pricing')
+    assert.equal(db.getCachedPrice('EUROPE', 'T4_BAG'), null, 'Legacy zero prices must not prevent new fallback pricing')
     db.saveProfile({ id: 'a', name: 'A', server: 'EUROPE' })
     const settings = db.getSettings()
     assert.equal(settings.language, 'en')
+    assert.equal(settings.uiScale, 1)
     assert.equal(settings.overlayCustomEnabled, false)
-    db.saveSettings({ ...settings, overlayTransparent: true, overlayCustomEnabled: true,
+    db.saveSettings({ ...settings, uiScale: 1.75, overlayTransparent: true, overlayCustomEnabled: true,
       overlayHtml: '<b>{{profit}}</b>', overlayCss: 'b { color: red; }' })
     db.setLanguage('de')
     const event: StoredEvent = {
@@ -47,6 +48,7 @@ async function main(): Promise<void> {
     db.close()
     db = new AppDatabase(path)
     assert.equal(db.getSettings().language, 'de')
+    assert.equal(db.getSettings().uiScale, 1.75)
     assert.equal(db.getSettings().overlayHtml, '<b>{{profit}}</b>')
     assert.equal(db.getSettings().overlayCss, 'b { color: red; }')
     assert.equal(db.getSettings().overlayTransparent, true)
@@ -87,12 +89,12 @@ async function main(): Promise<void> {
     assert.equal(service.getTrackingStats().profit, 0)
     db.saveProfile({ id: 'a', name: 'A', server: 'EUROPE' })
     db.insertEvent({ ...event, eventId: 'legacy', pricingMethod: 'MEDIAN_CITY_SELL_MIN' })
-    assert.equal(db.listLegacyPricedEvents('a').length, 1)
+    assert.equal(db.listPendingPricedEvents('a').length, 0)
     db.setEventValuation('a', 'legacy', 'INVENTORY', 400)
     db.updateEventPrices('a', 'legacy', 9000, 1200)
     assert.equal(db.getEvent('a', 'legacy')?.adjustedValue, 1200)
     assert.equal(db.getEvent('a', 'legacy')?.estimatedValue, 9000)
-    assert.equal(db.listLegacyPricedEvents('a').length, 0)
+    assert.equal(db.listPendingPricedEvents('a').length, 0)
     db.setEventValuation('a', 'legacy', 'NONE', 0)
     db.updateEventPrices('a', 'legacy', 11000, 1500)
     assert.equal(service.getFightDetails('legacy')?.estimatedValue, 0)
@@ -100,16 +102,34 @@ async function main(): Promise<void> {
     db.saveCachedPrice('EUROPE', 'T4_BAG@1', 1200)
     db.saveCachedPrice('AMERICAS', 'T4_BAG', 600)
     db.saveCachedPrice('EUROPE', 'T4_BAG', 950)
+    db.saveCachedPrice('EUROPE', 'T4_MISSING', 0)
     db.close()
+    const agedCache = new Database(path)
+    agedCache.prepare('UPDATE market_history_median_prices_v4 SET fetched_at = 1').run()
+    agedCache.close()
     db = new AppDatabase(path)
     service = new StatisticsService(db)
-    assert.equal(db.getCachedPrice('EUROPE', 'T4_BAG', 60000), 950)
-    assert.equal(db.getCachedPrice('EUROPE', 'T4_BAG@1', 60000), 1200)
-    assert.equal(db.getCachedPrice('AMERICAS', 'T4_BAG', 60000), 600)
-    assert.equal(db.getCachedPrice('EUROPE', 'T5_BAG', 60000), null)
-    assert.equal(db.getCachedPrice('EUROPE', 'T4_BAG', -1), null)
+    assert.equal(db.getCachedPrice('EUROPE', 'T4_BAG'), 950)
+    assert.equal(db.getCachedPrice('EUROPE', 'T4_BAG@1'), 1200)
+    assert.equal(db.getCachedPrice('AMERICAS', 'T4_BAG'), 600)
+    assert.equal(db.getCachedPrice('EUROPE', 'T5_BAG'), null)
+    assert.equal(db.getCachedPrice('EUROPE', 'T4_BAG'), 950)
     db.insertEvent({ ...event, eventId: 'old-quality-price', pricingMethod: 'BRECILIEN_HISTORY_AVG_7D_V1' })
-    assert.equal(db.listLegacyPricedEvents('a')[0].eventId, 'old-quality-price')
+    assert.equal(db.listPendingPricedEvents('a').length, 0)
+    assert.equal(db.countPendingPrices('a'), 0)
+    assert.equal(service.getFightDetails('old-quality-price')?.estimatedValue, event.estimatedValue)
+    assert.equal(db.getEvent('a', 'old-quality-price')?.pricingTimestamp, event.pricingTimestamp)
+    db.insertEvent({ ...event, eventId: 'pending', pricingMethod: 'PENDING', pricingTimestamp: 0 })
+    assert.equal(db.countPendingPrices('a'), 1)
+    assert.equal(db.listPendingPricedEvents('a')[0].eventId, 'pending')
+    assert.equal(db.listPendingPricedEvents('a', ['pending']).length, 0)
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = async () => { throw new Error('Unexpected network request after restart') }
+    try {
+      const restartedPrices = new PriceService(db)
+      assert.equal(await restartedPrices.getMedianPrice('EUROPE', 'T4_BAG'), 950)
+      assert.equal(await restartedPrices.getMedianPrice('EUROPE', 'T4_MISSING'), 0)
+    } finally { globalThis.fetch = originalFetch }
     db.saveProfile({ id: 'other', name: 'Other', server: 'EUROPE' })
     await assert.rejects(service.setFightValuation('1', 'NONE', prices), /Fight not found/)
     console.log('Database valuation integration passed: persistence, inventory-only pricing, restoration, profile isolation.')

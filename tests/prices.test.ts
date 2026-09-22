@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { historicalAverage, historyWindow, PriceService, selectHistoricalPrice } from '../src/main/price-service'
+import { historicalMedian, historyWindow, PriceService, selectHistoricalPrice } from '../src/main/price-service'
 import type { AppDatabase } from '../src/main/database'
 
 const window = { start: Date.UTC(2026, 8, 14), end: Date.UTC(2026, 8, 21) }
@@ -9,15 +9,23 @@ const row = { item_id: 'T4_BAG', location: 'Brecilien', quality: 1, data: [
 ] }
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
-describe('seven-day Brecilien averages', () => {
-  it('weights SilverAvg by volume, excludes other cities, qualities and dates', () => {
-    expect(historicalAverage([row, { ...row, location: 'Caerleon' }, { ...row, quality: 5 }, { ...row, item_id: 'T8_BAG' }], 'T4_BAG', 1, window)).toBe(190)
-    expect(historicalAverage([{ ...row, data: [...row.data,
+describe('seven-day historical medians', () => {
+  it('resists a high-volume outlier and handles odd, even and single samples', () => {
+    const median = (prices: number[]) => historicalMedian([{ ...row, data: prices.map((price, i) => ({
+      timestamp: `2026-09-${14 + i}T00:00:00Z`, avg_price: price, item_count: price > 1000 ? 99999 : 1
+    })) }], row.item_id, 1, window)
+    expect(median([15000000, 100, 110])).toBe(110)
+    expect(median([15000000, 100, 110, 120])).toBe(115)
+    expect(median([123])).toBe(123)
+  })
+  it('takes the median of daily prices, excludes other cities, qualities and dates', () => {
+    expect(historicalMedian([row, { ...row, location: 'Caerleon' }, { ...row, quality: 5 }, { ...row, item_id: 'T8_BAG' }], 'T4_BAG', 1, window)).toBe(550)
+    expect(historicalMedian([{ ...row, data: [...row.data,
       { timestamp: '2026-09-13T00:00:00', avg_price: 15000000, item_count: 9999 },
       { timestamp: '2026-09-21T00:00:00', avg_price: 15000000, item_count: 9999 },
       { timestamp: '2026-09-16T00:00:00', avg_price: 15000000, item_count: 0 }
-    ] }], 'T4_BAG', 1, window)).toBe(190)
-    expect(historicalAverage([], 'T4_BAG', 1, window)).toBe(0)
+    ] }], 'T4_BAG', 1, window)).toBe(550)
+    expect(historicalMedian([], 'T4_BAG', 1, window)).toBe(0)
     expect(historyWindow(Date.UTC(2026, 8, 21, 18))).toEqual(window)
   })
 
@@ -34,8 +42,8 @@ describe('seven-day Brecilien averages', () => {
     const values = await Promise.all([0, 1, 2, 3, 4, 5].map((quality) => service.calculateVictimValue('EUROPE', {
       Equipment: { Bag: { Type: 'T4_BAG', Quality: quality } }, Inventory: [{ Type: 'T4_BAG', Count: 3 }]
     })))
-    expect(values).toEqual([760, 760, 760, 760, 760, 760])
-    expect(await new PriceService(db).getAveragePrice('EUROPE', 'T4_BAG')).toBe(190)
+    expect(values).toEqual([2200, 2200, 2200, 2200, 2200, 2200])
+    expect(await new PriceService(db).getMedianPrice('EUROPE', 'T4_BAG')).toBe(550)
     const url = (fetchPrice.mock.calls[0] as unknown as [URL])[0]
     expect(url.pathname).toBe('/api/v2/stats/history/T4_BAG.json')
     expect(url.searchParams.get('locations')).toContain('Brecilien')
@@ -52,7 +60,7 @@ describe('seven-day Brecilien averages', () => {
     const saveCachedPrice = vi.fn()
     const db = { getCachedPrice: () => null, saveCachedPrice } as unknown as AppDatabase
     vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 503 })))
-    await expect(new PriceService(db).getAveragePrice('EUROPE', 'T4_BAG')).rejects.toThrow('AODP history HTTP 503')
+    await expect(new PriceService(db).getMedianPrice('EUROPE', 'T4_BAG')).rejects.toThrow('AODP history HTTP 503')
     expect(saveCachedPrice).not.toHaveBeenCalled()
   })
 
@@ -61,8 +69,8 @@ describe('seven-day Brecilien averages', () => {
     const elsewhere = { ...excellent, location: 'Fort Sterling' }
     expect(selectHistoricalPrice([row, elsewhere], row.item_id, window)).toEqual({ price: 300, quality: 4, source: 'Regular cities' })
     expect(selectHistoricalPrice([row, excellent, { ...elsewhere, data: row.data }], row.item_id, window)).toEqual({ price: 300, quality: 4, source: 'Brecilien' })
-    expect(selectHistoricalPrice([row], row.item_id, window)).toEqual({ price: 190, quality: 1, source: 'Brecilien' })
-    expect(selectHistoricalPrice([{ ...row, location: 'Lymhurst' }], row.item_id, window)).toEqual({ price: 190, quality: 1, source: 'Regular cities' })
+    expect(selectHistoricalPrice([row], row.item_id, window)).toEqual({ price: 550, quality: 1, source: 'Brecilien' })
+    expect(selectHistoricalPrice([{ ...row, location: 'Lymhurst' }], row.item_id, window)).toEqual({ price: 550, quality: 1, source: 'Regular cities' })
     expect(selectHistoricalPrice([{ ...excellent, location: 'Black Market' }], row.item_id, window).price).toBe(0)
     expect(selectHistoricalPrice([{ ...excellent, quality: 5 }], row.item_id, window).price).toBe(0)
   })

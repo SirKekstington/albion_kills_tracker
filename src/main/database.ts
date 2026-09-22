@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3'
 import { DEFAULT_OVERLAY_APPEARANCE } from '../shared/overlay'
-import { PRICING_METHOD, PRICE_QUALITY } from '../shared/pricing'
+import { PRICING_METHOD, PRICE_QUALITY, PENDING_PRICING_METHOD } from '../shared/pricing'
 import type {
   AppSettings,
   EventType,
@@ -78,11 +78,11 @@ export class AppDatabase {
         FOREIGN KEY (profile_id, event_id) REFERENCES events(profile_id, event_id) ON DELETE CASCADE
       );
 
-      CREATE TABLE IF NOT EXISTS market_history_prices_v3 (
+      CREATE TABLE IF NOT EXISTS market_history_median_prices_v4 (
         server TEXT NOT NULL,
         item_id TEXT NOT NULL,
         quality INTEGER NOT NULL,
-        average_price INTEGER NOT NULL,
+        median_price INTEGER NOT NULL,
         fetched_at INTEGER NOT NULL,
         PRIMARY KEY (server, item_id, quality)
       );
@@ -147,16 +147,16 @@ export class AppDatabase {
     return row ? mapEventRow(row) : null
   }
 
-  listLegacyPricedEvents(profileId: string, excludeIds: string[] = []): StoredEvent[] {
+  listPendingPricedEvents(profileId: string, excludeIds: string[] = []): StoredEvent[] {
     const exclusions = excludeIds.length ? `AND event_id NOT IN (${excludeIds.map(() => '?').join(',')})` : ''
-    return (this.db.prepare(`SELECT * FROM events WHERE profile_id = ? AND pricing_method != ? ${exclusions}
-      ORDER BY (pricing_method = 'PENDING') DESC, event_timestamp DESC LIMIT 2`)
-      .all(profileId, PRICING_METHOD, ...excludeIds) as EventRow[]).map(mapEventRow)
+    return (this.db.prepare(`SELECT * FROM events WHERE profile_id = ? AND pricing_method = ? ${exclusions}
+      ORDER BY event_timestamp DESC LIMIT 2`)
+      .all(profileId, PENDING_PRICING_METHOD, ...excludeIds) as EventRow[]).map(mapEventRow)
   }
 
   countPendingPrices(profileId: string): number {
-    return (this.db.prepare('SELECT COUNT(*) AS count FROM events WHERE profile_id = ? AND pricing_method != ?')
-      .get(profileId, PRICING_METHOD) as { count: number }).count
+    return (this.db.prepare('SELECT COUNT(*) AS count FROM events WHERE profile_id = ? AND pricing_method = ?')
+      .get(profileId, PENDING_PRICING_METHOD) as { count: number }).count
   }
 
   updateEventPrices(profileId: string, eventId: string, value: number, inventoryValue: number): void {
@@ -217,24 +217,23 @@ export class AppDatabase {
   }
 
   // One indexed reference price per item/server, independent of worn quality.
-  // V3 separates fallback-aware prices from the old Brecilien-only cache.
-  getCachedPrice(server: string, itemId: string, maxAgeMs: number): number | null {
+  // V4 separates median prices from previously cached averages.
+  getCachedPrice(server: string, itemId: string): number | null {
     const row = this.db.prepare(`
-      SELECT average_price AS price, fetched_at AS fetchedAt
-      FROM market_history_prices_v3
+      SELECT median_price AS price
+      FROM market_history_median_prices_v4
       WHERE server = ? AND item_id = ? AND quality = ?
-    `).get(server, itemId, PRICE_QUALITY) as { price: number; fetchedAt: number } | undefined
+    `).get(server, itemId, PRICE_QUALITY) as { price: number } | undefined
 
-    if (!row || Date.now() - row.fetchedAt > maxAgeMs) return null
-    return row.price
+    return row?.price ?? null
   }
 
   saveCachedPrice(server: string, itemId: string, price: number): void {
     this.db.prepare(`
-      INSERT INTO market_history_prices_v3 (server, item_id, quality, average_price, fetched_at)
+      INSERT INTO market_history_median_prices_v4 (server, item_id, quality, median_price, fetched_at)
       VALUES (?, ?, ?, ?, ?)
       ON CONFLICT(server, item_id, quality) DO UPDATE SET
-        average_price = excluded.average_price,
+        median_price = excluded.median_price,
         fetched_at = excluded.fetched_at
     `).run(server, itemId, PRICE_QUALITY, price, Date.now())
   }
@@ -243,6 +242,7 @@ export class AppDatabase {
     const rows = this.db.prepare('SELECT key, value FROM settings').all() as Array<{ key: string; value: string }>
     const values = Object.fromEntries(rows.map((row) => [row.key, JSON.parse(row.value)]))
     return {
+      uiScale: typeof values.uiScale === 'number' && Number.isFinite(values.uiScale) && values.uiScale >= 1 && values.uiScale <= 2 ? values.uiScale : 1,
       language: values.language === 'de' ? 'de' : 'en',
       overlayTransparent: typeof values.overlayTransparent === 'boolean' ? values.overlayTransparent : DEFAULT_OVERLAY_APPEARANCE.overlayTransparent,
       overlayCustomEnabled: typeof values.overlayCustomEnabled === 'boolean' ? values.overlayCustomEnabled : DEFAULT_OVERLAY_APPEARANCE.overlayCustomEnabled,

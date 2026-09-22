@@ -22,10 +22,12 @@ describe('persistent item image cache', () => {
     expect(decodeURIComponent(url.pathname)).toBe('/v1/item/T6_2H_AXE_AVALON@3.png')
     expect(url.searchParams.get('quality')).toBe('5')
     expect(url.searchParams.get('locale')).toBe('en')
+    fetchImage.mockRejectedValueOnce(new Error('Offline after restart'))
     expect(await new ItemImageCache(directory).get('T6_2H_AXE_AVALON@3', 5)).toBe(first)
     expect(fetchImage).toHaveBeenCalledTimes(1)
+    fetchImage.mockReset().mockImplementation(async () => new Response(png))
     await cache.get('T6_2H_AXE_AVALON@3', 4)
-    expect(fetchImage).toHaveBeenCalledTimes(2)
+    expect(fetchImage).toHaveBeenCalledTimes(1)
   })
 
   it('normalizes consumable quality and retries failed downloads', async () => {

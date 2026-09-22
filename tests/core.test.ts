@@ -20,11 +20,14 @@ describe('event classification', () => {
 })
 
 describe('statistics', () => {
-  it('does not include pending or obsolete maximum-sell values in historical average totals', () => {
-    const pending = { ...event('KILL', 15000000), pricingMethod: 'BRECILIEN_SELL_MAX' }
+  it('excludes pending values but retains completed snapshots from older pricing methods', () => {
+    const pending = { ...event('KILL', 15000000), pricingMethod: 'PENDING' }
     expect(calculateStats([pending]).profit).toBe(0)
     expect(calculateStats([pending]).kills).toBe(1)
     expect(toFightDetails(pending).pricingPending).toBe(true)
+    const completed = { ...pending, pricingMethod: 'BRECILIEN_SELL_MAX' }
+    expect(calculateStats([completed]).profit).toBe(15000000)
+    expect(toFightDetails(completed).pricingPending).toBe(false)
   })
   it('excludes protected gear while retaining fight counts and the original estimates', () => {
     const noLoss = { ...event('DEATH', 135_407_077), valuationMode: 'NONE' as const }

@@ -1,13 +1,13 @@
 # Albion PvP Tracker
 
-A modern, local-first desktop tracker for Albion Online PvP events. It stores data in SQLite, values victim equipment with historical average prices in Brecilien, and exposes a small OBS browser-source overlay.
+A modern, local-first desktop tracker for Albion Online PvP events. It stores data in SQLite, values victim equipment with historical median prices, and exposes a small OBS browser-source overlay.
 
 ## Included in this MVP
 
 - Europe, Americas, and Asia character search
 - automatic polling of global events plus recent player kills/deaths
 - KILL / ASSIST / DEATH classification
-- Historical `avg_price`, weighted by `item_count`, over the last seven completed UTC days; Excellent/Brecilien preferred with market and Normal-quality fallbacks
+- Median of daily historical `avg_price` values, without volume weighting, over the last seven completed UTC days; Excellent/Brecilien preferred with market and Normal-quality fallbacks
 - fights are saved immediately; valuation runs separately and retries failures without blocking imports
 - legacy median/max-sell valuations are automatically replaced; pending values are excluded from silver totals until recalculated
 - Today / 7 days / 30 days / all-time statistics
@@ -102,7 +102,7 @@ The tracker fills in the values and updates every three seconds; custom JavaScri
 
 Albion's Game Info API is public but not a formally supported product API. The global event endpoint only exposes a recent window. Direct kills and deaths can be backfilled from player endpoints, but assists can be missed while the app is not running. A future hosted collector would be needed for complete 24/7 assist history.
 
-Market reports can also be missing. The tracker uses daily historical sell-order averages for the last seven completed UTC days, weighted by reported item volume, with a persistent SQLite cache refreshed after one hour. It prefers Excellent quality (4) in Brecilien, then Excellent across regular cities. If neither has usable history, it tries Normal quality (1) in Brecilien, then across regular cities. This also covers quality-less items such as potions and food. The Black Market, current partial day and maximum sell quotes are excluded. Indexed lookups and concurrent request sharing reuse one reference price per server and exact item ID (including tier/enchantment), regardless of worn quality and across app restarts. The versioned cache excludes old Brecilien-only zero prices. Existing fight valuations are recalculated in the background; manual loss overrides are preserved. An item is still valued at zero when no usable history exists; the selected source and quality or missing data are logged in DEV diagnostics. HTTP failures leave the fight queued for retry. Historical averages remain estimates, not actual loot proceeds; this is not a verified copy of KillBoard#1's valuation formula.
+Market reports can also be missing. The tracker uses the median of daily historical sell-order average prices for the last seven completed UTC days, without weighting by item volume, with a persistent SQLite cache without automatic expiration. It prefers Excellent quality (4) in Brecilien, then Excellent across regular cities. If neither has usable history, it tries Normal quality (1) in Brecilien, then across regular cities. This also covers quality-less items such as potions and food. The Black Market, current partial day and maximum sell quotes are excluded. Indexed lookups and concurrent request sharing reuse one reference price per server and exact item ID (including tier/enchantment), regardless of worn quality and across app restarts. The versioned cache excludes previously cached averages. Completed fight valuations (including older pricing methods and zero values) are retained across restarts; only pending fights are calculated in the background. Manual loss overrides are preserved. An item is still valued at zero when no usable history exists; the selected source and quality or missing data are logged in DEV diagnostics. HTTP failures leave the fight queued for retry. Historical medians remain estimates, not actual loot proceeds; this is not a verified copy of KillBoard#1's valuation formula.
 
 ## DEV diagnostics
 
@@ -126,3 +126,9 @@ This project is not affiliated with Sandbox Interactive GmbH. Albion Online is a
 ## License
 
 MIT
+
+## Display scaling and persistent caches
+
+Under **Settings → Appearance → UI scale**, select 100%, 125%, 150%, 175% or 200% and save. Text, icons and controls scale together; the setting survives restarts. The OBS overlay keeps its own size.
+
+Item images for weapon icons, equipment and inventory are stored permanently in the app user-data folder under `item-images`. Previously downloaded images also work offline after restart. Failed downloads can be retried. Prices and completed fight valuations remain in `tracker.db` and are reused without automatic expiry or startup recalculation; newly encountered items still require a market request.

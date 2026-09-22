@@ -9,7 +9,7 @@ import type {
   ValuationMode
 } from '../shared/types'
 import { EMPTY_STATS } from '../shared/types'
-import { PRICING_METHOD, PENDING_PRICING_METHOD } from '../shared/pricing'
+import { PENDING_PRICING_METHOD } from '../shared/pricing'
 import { AppDatabase } from './database'
 import type { PriceService } from './price-service'
 
@@ -104,7 +104,7 @@ function toFightSummary(event: StoredEvent): FightSummary {
     : raw?.Participants?.find((participant) => participant.Id === event.profileId)
   const opponent = event.type === 'DEATH' ? raw?.Killer : raw?.Victim
   return {
-    pricingPending: event.pricingMethod === PENDING_PRICING_METHOD || Boolean(event.pricingMethod && event.pricingMethod !== PRICING_METHOD),
+    pricingPending: event.pricingMethod === PENDING_PRICING_METHOD,
     playerWeapon: player?.Equipment?.MainHand ?? null,
     opponentWeapon: opponent?.Equipment?.MainHand ?? null,
     valuationMode: event.valuationMode ?? 'FULL',
@@ -140,8 +140,8 @@ export function toFightDetails(event: StoredEvent): FightDetails {
 }
 
 function accountedValue(event: StoredEvent): number {
-  // Never mix the old inflated max-sell snapshots into the new historical totals.
-  if (event.pricingMethod && event.pricingMethod !== PRICING_METHOD) return 0
+  // Completed snapshots remain authoritative, including those from older versions.
+  if (event.pricingMethod === PENDING_PRICING_METHOD) return 0
   return event.valuationMode === 'NONE' ? 0 : event.valuationMode === 'INVENTORY'
     ? event.adjustedValue ?? 0 : event.estimatedValue
 }
