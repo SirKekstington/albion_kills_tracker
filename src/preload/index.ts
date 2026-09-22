@@ -2,6 +2,9 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { AppApi } from '../shared/types'
 
 const api: AppApi & { onUpdated(callback: () => void): () => void } = {
+  getUpdateState: () => ipcRenderer.invoke('updates:get'),
+  checkForUpdates: () => ipcRenderer.invoke('updates:check'),
+  installUpdate: () => ipcRenderer.invoke('updates:install'),
   ...(process.argv.includes('--tracker-dev-debug') ? {
     getDebugSnapshot: () => ipcRenderer.invoke('debug:snapshot'),
     debugImportEvent: (eventId: string) => ipcRenderer.invoke('debug:import', eventId)

@@ -280,6 +280,14 @@ export class AppDatabase {
     }
   }
 
+  wasUpdatePrompted(version: string): boolean {
+    return Boolean(this.db.prepare('SELECT 1 FROM settings WHERE key = ?').get(`updatePrompt:${version}`))
+  }
+
+  rememberUpdatePrompt(version: string): void {
+    this.db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)').run(`updatePrompt:${version}`, 'true')
+  }
+
   saveSettings(settings: AppSettings): void {
     const statement = this.db.prepare(`
       INSERT INTO settings (key, value) VALUES (?, ?)

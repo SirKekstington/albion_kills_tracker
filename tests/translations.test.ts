@@ -17,7 +17,7 @@ describe('English and German', () => {
   })
 
   it('provides German translations for every literal translation key in the UI', () => {
-    for (const file of ['App', 'FightDetailsDialog', 'FightWeapon', 'OverlayEditor', 'i18n', 'DebugPanel']) {
+    for (const file of ['App', 'FightDetailsDialog', 'FightWeapon', 'OverlayEditor', 'i18n', 'DebugPanel', 'UpdateSettings']) {
       const text = readFileSync(`src/renderer/src/${file}.tsx`, 'utf8')
       const source = ts.createSourceFile(file + '.tsx', text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
       const visit = (node: ts.Node): void => {

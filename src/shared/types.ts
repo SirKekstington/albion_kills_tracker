@@ -143,6 +143,9 @@ export interface SaveProfileInput {
 }
 
 export interface AppApi {
+  getUpdateState(): Promise<UpdateState>
+  checkForUpdates(): Promise<UpdateState>
+  installUpdate(): Promise<UpdateState>
   getFightPage(range: TimeRange, page: number, pageSize: number): Promise<FightPage>
   getDebugSnapshot?(): Promise<DebugSnapshot>
   debugImportEvent?(eventId: string): Promise<boolean>
@@ -160,6 +163,13 @@ export interface AppApi {
   saveSettings(settings: AppSettings): Promise<AppSettings>
   getOverlayUrl(): Promise<string>
   openExternal(url: string): Promise<void>
+}
+
+export interface UpdateState {
+  currentVersion: string
+  status: 'disabled' | 'idle' | 'checking' | 'current' | 'available' | 'downloading' | 'downloaded' | 'installing' | 'error'
+  version: string | null
+  progress: number
 }
 
 export interface FightPage {

@@ -1,4 +1,7 @@
-import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from 'electron'
+import { autoUpdater } from 'electron-updater'
+import { UpdateService } from './update-service'
+import { translate } from '../shared/translations'
 import { join } from 'node:path'
 import { z } from 'zod'
 import type { AlbionServer, AppSettings, TimeRange } from '../shared/types'
@@ -21,6 +24,9 @@ let statistics: StatisticsService
 let itemImages: ItemImageCache
 let prices: PriceService
 let retentionTimer: NodeJS.Timeout | undefined
+let updates: UpdateService
+let updateTimer: NodeJS.Timeout | undefined
+let updateCheckStarted = false
 const diagnostics = new Diagnostics(!app.isPackaged)
 
 const serverSchema = z.enum(['EUROPE', 'AMERICAS', 'ASIA'])
@@ -68,7 +74,14 @@ function createWindow(): void {
   mainWindow.webContents.on('did-finish-load', () => {
     mainWindow?.webContents.setZoomFactor(db.getSettings().uiScale)
   })
-  mainWindow.once('ready-to-show', () => mainWindow?.show())
+  mainWindow.once('ready-to-show', () => {
+    mainWindow?.show()
+    if (!updateCheckStarted && app.isPackaged) {
+      updateCheckStarted = true
+      void updates.check(true)
+      updateTimer = setInterval(() => { void updates.check(true) }, 6 * 60 * 60 * 1000)
+    }
+  })
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https://')) void shell.openExternal(url)
     return { action: 'deny' }
@@ -91,6 +104,9 @@ async function applyOverlaySettings(settings: AppSettings): Promise<void> {
 }
 
 function registerIpc(): void {
+  ipcMain.handle('updates:get', () => updates.getState())
+  ipcMain.handle('updates:check', () => updates.check())
+  ipcMain.handle('updates:install', () => updates.install())
   ipcMain.handle('fights:page', (_event, range: unknown, page: unknown, pageSize: unknown) =>
     statistics.getFightPage(rangeSchema.parse(range), z.number().int().min(1).max(100000000).parse(page),
       z.union([z.literal(10), z.literal(15), z.literal(20)]).parse(pageSize)))
@@ -177,6 +193,22 @@ function registerIpc(): void {
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null)
   db = new AppDatabase(join(app.getPath('userData'), 'tracker.db'))
+  autoUpdater.autoDownload = false
+  autoUpdater.autoInstallOnAppQuit = false
+  autoUpdater.allowPrerelease = false
+  autoUpdater.allowDowngrade = false
+  updates = new UpdateService(autoUpdater, app.getVersion(), app.isPackaged && process.platform === 'win32',
+    (version) => db.wasUpdatePrompted(version), (version) => db.rememberUpdatePrompt(version),
+    async (version) => {
+      if (!mainWindow || mainWindow.isDestroyed()) return false
+      const result = await dialog.showMessageBox(mainWindow, {
+        type: 'question', title: 'Update Yes/No',
+        message: translate(db.getSettings().language, 'Version {version} is available. Update now?', { version }),
+        detail: translate(db.getSettings().language, 'The update will download and restart the app. You can also update later in Settings.'),
+        buttons: ['Yes', 'No'], defaultId: 1, cancelId: 1, noLink: true
+      })
+      return result.response === 0
+    }, notifyRenderer)
   db.pruneEvents()
   retentionTimer = setInterval(() => {
     try { if (db.pruneEvents() > 0) notifyRenderer() }
@@ -209,6 +241,7 @@ app.on('window-all-closed', () => {
 })
 
 app.on('before-quit', () => {
+  if (updateTimer) clearInterval(updateTimer)
   if (retentionTimer) clearInterval(retentionTimer)
   collector?.stop()
   void overlay?.stop()

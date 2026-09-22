@@ -36,6 +36,7 @@ import type {
 import { EMPTY_STATS } from '../../shared/types'
 import { FightDetailsDialog } from './FightDetailsDialog'
 import { OverlayEditor } from './OverlayEditor'
+import { UpdateSettings } from './UpdateSettings'
 import { FightWeapon } from './FightWeapon'
 import { t, locale, useLanguage, applyLanguage, LanguageSelect } from './i18n'
 
@@ -157,7 +158,7 @@ function RepositoryFooter(): ReactElement {
   return <footer className="repository-footer"><a href={url} onClick={(event) => {
     event.preventDefault()
     void window.tracker.openExternal(url)
-  }}><Github size={15} aria-hidden="true" /> {t("Albion PvP Tracker on GitHub")}</a></footer>
+  }}><Github size={15} aria-hidden="true" /> {t("Albion PvP Tracker on GitHub")}</a><span>{'Made with ♥️ by MrKekstein'}</span></footer>
 }
 
 function Navigation({ view, onView }: { view: View; onView: (v: View) => void }): ReactElement {
@@ -360,6 +361,7 @@ function SettingsView({ onProfileChanged }: { onProfileChanged: (p: PlayerProfil
       </select></label>
       <p className="detail-note">{t('Saving applies deletion immediately, then at startup and hourly. Deleted events and their valuations cannot be restored and no longer count in statistics. Item images and cached prices are kept.')}</p>
     </section>
+    <UpdateSettings />
     {saveError && <p role="alert" className="alert">{t(saveError)}</p>}
     <section className="settings-actions"><button className="secondary-button" onClick={() => setEditingProfile(true)}><UserRound size={17} /> {t("Change character")}</button><button className="primary-button" disabled={saving} onClick={() => void save()}>{saved ? <Check size={18} /> : null}{saving ? t("Saving…") : saved ? t("Saved") : t("Save settings")}</button></section>
   </div>
